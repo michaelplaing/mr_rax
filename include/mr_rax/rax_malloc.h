@@ -37,7 +37,11 @@
 
 #ifndef RAX_ALLOC_H
 #define RAX_ALLOC_H
+
+#include <jemalloc/jemalloc.h>
+
 #define rax_malloc malloc
 #define rax_realloc realloc
 #define rax_free free
+
 #endif

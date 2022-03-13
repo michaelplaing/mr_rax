@@ -36,10 +36,10 @@
 #include <stdio.h>
 #include <errno.h>
 #include <math.h>
-#include "rax.h"
+#include "mr_rax/rax.h"
 
 #ifndef RAX_MALLOC_INCLUDE
-#define RAX_MALLOC_INCLUDE "rax_malloc.h"
+#define RAX_MALLOC_INCLUDE "mr_rax/rax_malloc.h"
 #endif
 
 #include RAX_MALLOC_INCLUDE

@@ -1,4 +1,18 @@
-rax-test
-rax-oom-test
-*.o
-*.dSYM
+# Ignore anything with a tilde, in case people do that
+*~
+
+#ignore local vscode setting
+.vscode/*
+
+# Ignore build/dist dir contents when present:
+build*/*
+dist/*
+
+#ignore archive & scratch
+archive/*
+scratch/*
+
+#ignore Redis databases
+dump.rdb
+
+.DS_Store

@@ -33,7 +33,7 @@
 #include <stdlib.h>
 #include <errno.h>
 
-#include "rax.h"
+#include "mr_rax/rax.h"
 
 int oomtest(int cycle) {
     printf("\n=========================\n");
@@ -172,4 +172,3 @@ int main(void) {
     printf("Test OK!\n");
     return 0;
 }
-
