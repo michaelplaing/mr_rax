@@ -1407,6 +1407,63 @@ int raxIteratorNextStep(raxIterator *it, int noup) {
         }
     }
 }
+int raxIteratorNextChildStep(raxIterator *it) {
+    size_t orig_key_len = it->key_len;
+    size_t orig_stack_items = it->stack.items;
+    raxNode *orig_node = it->node;
+
+    while(1) { // ascend/descend repeatedly until the next child key is found
+        unsigned char prevchild = it->key[it->key_len - 1];
+        it->node = raxStackPop(&it->stack); // go up
+
+        if (it->node == it->stop_node) { // have we popped above the seeked key?
+            it->flags |= RAX_ITER_EOF;
+            it->stack.items = orig_stack_items;
+            it->key_len = orig_key_len;
+            it->node = orig_node;
+            return 1;
+        }
+
+        int todel = it->node->iscompr ? it->node->size : 1;
+        raxIteratorDelChars(it, todel);
+
+        while(!it->node->iscompr && it->node->size > 1) { // find the next child node; exit if no children
+            raxNode **cp = raxNodeFirstChildPtr(it->node);
+            int i;
+            for (i = 0; i < it->node->size; i++, cp++) { // data index and child node ptr incremented together
+                if (it->node->data[i] > prevchild) break;
+            }
+
+            if (i != it->node->size) { // found a child subtree to explore
+                if (!raxIteratorAddChars(it, it->node->data + i, 1)) return 0; // add child node char to key_string
+                if (!raxStackPush(&it->stack, it->node)) return 0;
+                memcpy(&it->node, cp, sizeof(it->node)); // child node is now current
+
+                while(1) {
+                    if (it->node->iskey) return 1;
+                    int children = it->node->iscompr ? 1 : it->node->size;
+
+                    if (children) {
+                        if (!raxStackPush(&it->stack,it->node)) return 0;
+                        cp = raxNodeFirstChildPtr(it->node);
+
+                        if (
+                            !raxIteratorAddChars(it, it->node->data, it->node->iscompr ? it->node->size : 1)
+                        ) return 0;
+
+                        memcpy(&it->node, cp, sizeof(it->node));
+                    }
+                    else { // not a key and no children - should this happen?
+                        break; // ignore and trigger ascent
+                    }
+                }
+            }
+            else {
+                break; // done w subtree, ascend again
+            }
+        }
+    }
+}
 
 /* Seek the greatest key in the subtree at the current node. Return 0 on
  * out of memory, otherwise 1. This is an helper function for different
@@ -1702,6 +1759,56 @@ int raxNext(raxIterator *it) {
         errno = 0;
         return 0;
     }
+    return 1;
+}
+
+int raxSeekChildren(raxIterator *it, unsigned char *key, size_t len) {
+    if (!raxSeek(it, "=", key, len)) return 0;
+    if (it->flags & RAX_ITER_EOF) return 1;
+    it->stop_node = raxStackPeek(&it->stack);
+
+    while(1) { // find the 1st child key
+        int children = it->node->iscompr ? 1 : it->node->size;
+
+        if (children) {
+            if (!raxStackPush(&it->stack,it->node)) return 0;
+            raxNode **cp = raxNodeFirstChildPtr(it->node);
+
+            if (
+                !raxIteratorAddChars(it, it->node->data, it->node->iscompr ? it->node->size : 1)
+            ) return 0;
+
+            memcpy(&it->node, cp, sizeof(it->node));
+            if (it->node->iskey) return 1;
+        }
+        else {
+            it->flags |= RAX_ITER_EOF;
+            return 1;
+        }
+    }
+}
+
+int raxNextChild(raxIterator *it) {
+    if (it->flags & RAX_ITER_EOF) {
+        errno = 0;
+        return 0;
+    }
+
+    if (it->flags & RAX_ITER_JUST_SEEKED) {
+        it->flags &= ~RAX_ITER_JUST_SEEKED;
+        return 1; // return the seeked key which is the 1st child
+    }
+
+    if (!raxIteratorNextChildStep(it)) {
+        errno = ENOMEM;
+        return 0;
+    }
+
+    if (it->flags & RAX_ITER_EOF) {
+        errno = 0;
+        return 0;
+    }
+
     return 1;
 }
 

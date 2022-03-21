@@ -13,7 +13,7 @@
 #include "rc4rand.h"
 
 // This is a special distinct node value used to separate tokens
-static void* token_delimiter = (void*)42; // "token_delimiter";
+static void* token_delimiter = NULL; // (void*)42; // "token_delimiter";
 
 #define MAX_TOKENS 32
 #define MAX_TOKEN_LEN 64
@@ -35,22 +35,24 @@ static int tokenize_topic(char* topic, char** ptopicv) {
     return numtokens;
 }
 
-static int subtree_search(raxIterator *piter, char* topic) {
+static int subtree_search(raxIterator *piter, const char* topic) {
     raxIterator iter = *piter;
     size_t len = strlen(topic);
     char* tokenv[MAX_TOKENS];
-    char topic2[MAX_TOPIC_LEN];
+    // char topic2[MAX_TOPIC_LEN];
+    char topic2[len + 1];
+    char topic3[len + 1];
     strlcpy(topic2, topic, MAX_TOPIC_LEN);
+    strlcpy(topic3, topic, MAX_TOPIC_LEN);
     size_t numtokens = tokenize_topic(topic2, tokenv);
     printf("\nsubtree parent:: topic: '%s'; numtokens: %lu\n", topic, numtokens);
 
     // iterate subtree
     raxSeek(&iter, ">", (uint8_t*)topic, len);
-    topic[len - 1] = 0xff;
+    topic3[len - 1] = 0xff;
 
     char token_prev[MAX_TOKEN_LEN] = "";
-    while(raxNext(&iter) && raxCompare(&iter, "<", (uint8_t*)topic, len)) {
-        // size_t discard;
+    while(raxNext(&iter) && raxCompare(&iter, "<", (uint8_t*)topic3, len)) {
         char cv[iter.key_len + 1];
         snprintf(cv, iter.key_len + 1, "%s", iter.key);
         tokenize_topic(cv, tokenv);
@@ -78,6 +80,7 @@ int topic_fun(void) {
         "sport/tennis/matches/+/amateur/#",
         "sport/tennis/matches/italy/professional/i6",
         "sport/tennis/matches/italy/professional/i5",
+        "sport/tennis/matches/ethiopia/professional/e4",
         "sport/tennis/matches/england/professional/e1",
         "sport/tennis/matches/england/professional/e2",
         "sport/tennis/matches/england/professional/e3",
@@ -171,6 +174,14 @@ int topic_fun(void) {
     // subtree
     // strlcpy(topic, "@/sport/tennis/matches", MAX_TOPIC_LEN);
     subtree_search(&iter, topic);
+
+    printf("seek topic: %s\n", topic);
+    raxSeekChildren(&iter, (uint8_t*)topic, strlen(topic));
+
+    while(raxNextChild(&iter)) {
+        printf("%.*s:%lu\n", (int)iter.key_len, (char*)iter.key, (uintptr_t)iter.data);
+    }
+
 
     raxStop(&iter);
     raxFree(prax);

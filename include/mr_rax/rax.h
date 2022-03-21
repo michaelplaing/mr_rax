@@ -181,6 +181,7 @@ typedef struct raxIterator {
     size_t key_max;         /* Max key len the current key buffer can hold. */
     unsigned char key_static_string[RAX_ITER_STATIC_LEN];
     raxNode *node;          /* Current node. Only for unsafe iteration. */
+    raxNode *stop_node;
     raxStack stack;         /* Stack used for unsafe iteration. */
     raxNodeCallback node_cb; /* Optional node callback. Normally set to NULL. */
 } raxIterator;
@@ -199,6 +200,8 @@ void raxFreeWithCallback(rax *rax, void (*free_callback)(void*));
 void raxStart(raxIterator *it, rax *rt);
 int raxSeek(raxIterator *it, const char *op, unsigned char *ele, size_t len);
 int raxNext(raxIterator *it);
+int raxSeekChildren(raxIterator *it, unsigned char *ele, size_t len);
+int raxNextChild(raxIterator *it);
 int raxPrev(raxIterator *it);
 int raxRandomWalk(raxIterator *it, size_t steps);
 int raxCompare(raxIterator *iter, const char *op, unsigned char *key, size_t key_len);
