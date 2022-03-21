@@ -1,3 +1,14 @@
+# mr_rax: a fork of Rax to use as a CMake subproject and with some additional functions.
+
+The additions are to assist in wildcard pattern matching, especially for large trees.
+
+So far these are:
+
+- raxSeekChildren: Seek a key in order to get its immediate child keys.
+
+- raxNextChild: Return the next immediate child key of the key sought above.
+
+
 # Rax, an ANSI C radix tree implementation
 
 Rax is a radix tree implementation initially written to be used in a specific
