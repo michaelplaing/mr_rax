@@ -201,6 +201,7 @@ void raxStart(raxIterator *it, rax *rt);
 int raxSeek(raxIterator *it, const char *op, unsigned char *ele, size_t len);
 int raxNext(raxIterator *it);
 int raxSeekChildren(raxIterator *it, unsigned char *ele, size_t len);
+int raxSeekSubtree(raxIterator *it, unsigned char *key, size_t len);
 int raxNextChild(raxIterator *it);
 int raxPrev(raxIterator *it);
 int raxRandomWalk(raxIterator *it, size_t steps);

@@ -182,6 +182,13 @@ int topic_fun(void) {
         printf("%.*s:%lu\n", (int)iter.key_len, (char*)iter.key, (uintptr_t)iter.data);
     }
 
+    strlcpy(topic, "@/sport/tennis/matches/france/amateur", MAX_TOPIC_LEN);
+    printf("subtree topic: %s\n", topic);
+    raxSeekSubtree(&iter, (uint8_t*)topic, strlen(topic));
+
+    while(raxNext(&iter)) {
+        printf("%.*s:%lu\n", (int)iter.key_len, (char*)iter.key, (uintptr_t)iter.data);
+    }
 
     raxStop(&iter);
     raxFree(prax);

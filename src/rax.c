@@ -1356,7 +1356,7 @@ int raxIteratorNextStep(raxIterator *it, int noup) {
                 int old_noup = noup;
 
                 /* Already on head? Can't go up, iteration finished. */
-                if (!noup && it->node == it->rt->head) {
+                if (!noup && it->node == it->stop_node) {
                     it->flags |= RAX_ITER_EOF;
                     it->stack.items = orig_stack_items;
                     it->key_len = orig_key_len;
@@ -1505,7 +1505,7 @@ int raxIteratorPrevStep(raxIterator *it, int noup) {
         int old_noup = noup;
 
         /* Already on head? Can't go up, iteration finished. */
-        if (!noup && it->node == it->rt->head) {
+        if (!noup && it->node == it->stop_node) {
             it->flags |= RAX_ITER_EOF;
             it->stack.items = orig_stack_items;
             it->key_len = orig_key_len;
@@ -1564,14 +1564,8 @@ int raxIteratorPrevStep(raxIterator *it, int noup) {
  * Return 0 if the seek failed for syntax error or out of memory. Otherwise
  * 1 is returned. When 0 is returned for out of memory, errno is set to
  * the ENOMEM value. */
-int raxSeek(raxIterator *it, const char *op, unsigned char *ele, size_t len) {
+int raxSeekEle(raxIterator *it, const char *op, unsigned char *ele, size_t len) {
     int eq = 0, lt = 0, gt = 0, first = 0, last = 0;
-
-    it->stack.items = 0; /* Just resetting. Intialized by raxStart(). */
-    it->flags |= RAX_ITER_JUST_SEEKED;
-    it->flags &= ~RAX_ITER_EOF;
-    it->key_len = 0;
-    it->node = NULL;
 
     /* Set flags according to the operator used to perform the seek. */
     if (op[0] == '>') {
@@ -1747,6 +1741,16 @@ int raxSeek(raxIterator *it, const char *op, unsigned char *ele, size_t len) {
     return 1;
 }
 
+int raxSeek(raxIterator *it, const char *op, unsigned char *ele, size_t len) {
+    it->stack.items = 0; /* Just resetting. Intialized by raxStart(). */
+    it->flags |= RAX_ITER_JUST_SEEKED;
+    it->flags &= ~RAX_ITER_EOF;
+    it->key_len = 0;
+    it->node = NULL;
+    it->stop_node = it->rt->head;
+    return raxSeekEle(it, op, ele, len);
+}
+
 /* Go to the next element in the scope of the iterator 'it'.
  * If EOF (or out of memory) is reached, 0 is returned, otherwise 1 is
  * returned. In case 0 is returned because of OOM, errno is set to ENOMEM. */
@@ -1762,7 +1766,24 @@ int raxNext(raxIterator *it) {
     return 1;
 }
 
+int raxSeekSubtree(raxIterator *it, unsigned char *key, size_t len) {
+    it->stack.items = 0; /* Just resetting. Intialized by raxStart(). */
+    it->flags |= RAX_ITER_JUST_SEEKED;
+    it->flags &= ~RAX_ITER_EOF;
+    it->key_len = 0;
+    it->node = NULL;
+    if (!raxSeekEle(it, "=", key, len)) return 0;
+    if (it->flags & RAX_ITER_EOF) return 1;
+    it->stop_node = raxStackPeek(&it->stack);
+    return 1;
+}
+
 int raxSeekChildren(raxIterator *it, unsigned char *key, size_t len) {
+    it->stack.items = 0; /* Just resetting. Intialized by raxStart(). */
+    it->flags |= RAX_ITER_JUST_SEEKED;
+    it->flags &= ~RAX_ITER_EOF;
+    it->key_len = 0;
+    it->node = NULL;
     if (!raxSeek(it, "=", key, len)) return 0;
     if (it->flags & RAX_ITER_EOF) return 1;
     it->stop_node = raxStackPeek(&it->stack);
@@ -1770,7 +1791,7 @@ int raxSeekChildren(raxIterator *it, unsigned char *key, size_t len) {
     while(1) { // find the 1st child key
         int children = it->node->iscompr ? 1 : it->node->size;
 
-        if (children) {
+        if (children) { // descend trying 1st children
             if (!raxStackPush(&it->stack,it->node)) return 0;
             raxNode **cp = raxNodeFirstChildPtr(it->node);
 
