@@ -1779,7 +1779,7 @@ int raxSeekSubtree(raxIterator *it, unsigned char *key, size_t len) {
 }
 
 int raxSeekChildren(raxIterator *it, unsigned char *key, size_t len) {
-    it->stack.items = 0; /* Just resetting. Intialized by raxStart(). */
+    it->stack.items = 0;
     it->flags |= RAX_ITER_JUST_SEEKED;
     it->flags &= ~RAX_ITER_EOF;
     it->key_len = 0;
