@@ -113,12 +113,7 @@ static int get_topic(const char* topic_in, char* topic, char* share) {
 static int upsert_topic(rax* prax, char* topic, size_t len) {
     uintptr_t count;
     int try = raxTryInsert(prax, (uint8_t*)topic, len, (void*)1, (void**)&count);
-
-    if (!try) {
-        count += 1;
-        raxInsert(prax, (uint8_t*)topic, len, (void*)count, NULL);
-    }
-
+    if (!try) raxInsert(prax, (uint8_t*)topic, len, (void*)(count + 1), NULL);
     return 0;
 }
 
@@ -131,7 +126,7 @@ static int upsert_topic_tree(rax* prax, const char* topic) {
     size_t numtokens = tokenize_topic(topic3, tokenv); // modifies topic3 and points into it from tokenv
     topic2[0] = '\0';
 
-    for (int i = 0; i < (numtokens - 1); i++) {
+    for (int i = 0; i < numtokens; i++) {
         strlcat(topic2, tokenv[i], tlen + 1);
         upsert_topic(prax, topic2, strlen(topic2));
         strlcat(topic2, "/", tlen + 1);
@@ -152,12 +147,12 @@ static int insert_subscription(rax* prax, const char* topic_in, const uint64_t c
     size_t tlen = strlen(topic);
     size_t clen = sizeof(client); // should be 8
     char topic2[tlen + 1 + clen];
-    upsert_topic(prax, topic, tlen); // insert/update the topic
-    upsert_topic_tree(prax, topic); // insert/update each component of the topic's tree
+    upsert_topic_tree(prax, topic); // insert/update the topic tree including the topic
     strlcpy(topic2, topic, tlen + 1);
     uint8_t clientv[clen];
     for (int i = 0; i < clen; i++) clientv[i] = client >> ((clen - i - 1) * 8) & 0xff; // network repr
 
+    // insert clients
     if (slen) { // shared subscription hierarchy
         memcpy((void*)topic2 + tlen, &shared_mark, 1);
         upsert_topic(prax, topic2, tlen + 1);
