@@ -57,7 +57,6 @@ static int subtree_search(raxIterator *piter, const char* topic) {
     raxIterator iter = *piter;
     size_t len = strlen(topic);
     char* tokenv[MAX_TOKENS];
-    // char topic2[MAX_TOPIC_LEN];
     char topic2[len + 1];
     char topic3[len + 1];
     strlcpy(topic2, topic, MAX_TOPIC_LEN);
@@ -111,7 +110,19 @@ static int get_topic(const char* topic_in, char* topic, char* share) {
     return 0;
 }
 
-static int insert_topic_tree(rax* prax, const char* topic) {
+static int upsert_topic(rax* prax, char* topic, size_t len) {
+    uintptr_t count;
+    int try = raxTryInsert(prax, (uint8_t*)topic, len, (void*)1, (void**)&count);
+
+    if (!try) {
+        count += 1;
+        raxInsert(prax, (uint8_t*)topic, len, (void*)count, NULL);
+    }
+
+    return 0;
+}
+
+static int upsert_topic_tree(rax* prax, const char* topic) {
     size_t tlen = strlen(topic);
     char* tokenv[MAX_TOKENS];
     char topic2[tlen + 1];
@@ -122,7 +133,7 @@ static int insert_topic_tree(rax* prax, const char* topic) {
 
     for (int i = 0; i < (numtokens - 1); i++) {
         strlcat(topic2, tokenv[i], tlen + 1);
-        if (strlen(topic2) > 2) raxTryInsert(prax, (uint8_t*)topic2, strlen(topic2), NULL, NULL);
+        upsert_topic(prax, topic2, strlen(topic2));
         strlcat(topic2, "/", tlen + 1);
     }
 
@@ -141,23 +152,23 @@ static int insert_subscription(rax* prax, const char* topic_in, const uint64_t c
     size_t tlen = strlen(topic);
     size_t clen = sizeof(client); // should be 8
     char topic2[tlen + 1 + clen];
-    int try_insert = raxTryInsert(prax, (uint8_t*)topic, tlen, NULL, NULL); // parent topic
-    if (try_insert) insert_topic_tree(prax, topic); // insert each component of the tree
+    upsert_topic(prax, topic, tlen); // insert/update the topic
+    upsert_topic_tree(prax, topic); // insert/update each component of the topic's tree
     strlcpy(topic2, topic, tlen + 1);
     uint8_t clientv[clen];
     for (int i = 0; i < clen; i++) clientv[i] = client >> ((clen - i - 1) * 8) & 0xff; // network repr
 
-    if (slen) { // shared subscription
+    if (slen) { // shared subscription hierarchy
         memcpy((void*)topic2 + tlen, &shared_mark, 1);
-        raxTryInsert(prax, (uint8_t*)topic2, tlen + 1, NULL, NULL); // insert the shared_mark
+        upsert_topic(prax, topic2, tlen + 1);
         memcpy((void*)topic2 + tlen + 1, (void*)share, slen);
-        raxTryInsert(prax, (uint8_t*)topic2, tlen + 1 + slen, NULL, NULL); // insert the share
+        upsert_topic(prax, topic2, tlen + 1 + slen);
         memcpy((void*)topic2 + tlen + 1 + slen, (void*)clientv, clen);
         raxInsert(prax, (uint8_t*)topic2, tlen + 1 + slen + clen, NULL, NULL); // insert the client
     }
-    else { // normal subscription
+    else { // normal subscription hierarchy
         memcpy((void*)topic2 + tlen, &client_mark, 1);
-        raxTryInsert(prax, (uint8_t*)topic2, tlen + 1, NULL, NULL); // insert the client_mark
+        upsert_topic(prax, topic2, tlen + 1);
         memcpy((void*)topic2 + tlen + 1, (void*)clientv, clen);
         raxInsert(prax, (uint8_t*)topic2, tlen + 1 + clen, NULL, NULL); // insert the client
     }
@@ -297,7 +308,7 @@ int topic_fun(void) {
     }
 */
 
-    // raxShow(prax);
+    raxShow(prax);
 
 /*
     raxIterator iter;
