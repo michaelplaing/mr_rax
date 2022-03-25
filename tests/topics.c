@@ -12,14 +12,11 @@
 #include "mr_rax/rax_malloc.h"
 #include "rc4rand.h"
 
-// This is a special distinct node value used to separate tokens
-static void* token_delimiter = NULL; // (void*)42; // "token_delimiter";
-
 #define MAX_TOKENS 32
 #define MAX_TOKEN_LEN 64
 #define MAX_TOPIC_LEN 256
 
-// invalid utf8 chars used for distinguishing client children
+// invalid utf8 chars used to separate clients & shared subs from topics
 static uint8_t client_mark = 0xFE;
 static uint8_t shared_mark = 0xFF;
 
@@ -141,19 +138,26 @@ static int insert_subscription(rax* prax, const char* topic_in, const uint64_t c
     char topic[tlen_in + 3];
     char share[tlen_in + 1];
     share[0] = '\0';
+
+    // get topic
     get_topic(topic_in, topic, share);
     // printf("topic: '%s'; client: %llu; share: '%s'\n", topic, client, share);
-    size_t slen = strlen(share);
-    size_t tlen = strlen(topic);
-    size_t clen = sizeof(client); // should be 8
-    char topic2[tlen + 1 + clen];
-    upsert_topic_tree(prax, topic); // insert/update the topic tree including the topic
-    strlcpy(topic2, topic, tlen + 1);
-    uint8_t clientv[clen];
-    for (int i = 0; i < clen; i++) clientv[i] = client >> ((clen - i - 1) * 8) & 0xff; // network repr
 
-    // insert clients
-    if (slen) { // shared subscription hierarchy
+    // insert/update topic & tree incrementing client counts
+    upsert_topic_tree(prax, topic);
+
+    // get the client bytes in network order (big endian)
+    size_t clen = sizeof(client); // should be 8
+    uint8_t clientv[clen];
+    for (int i = 0; i < clen; i++) clientv[i] = client >> ((clen - i - 1) * 8) & 0xff;
+
+    // insert client
+    size_t tlen = strlen(topic);
+    char topic2[tlen + 1 + clen];
+    strlcpy(topic2, topic, tlen + 1);
+    size_t slen = strlen(share);
+
+    if (slen) { // shared subscription sub-hierarchy
         memcpy((void*)topic2 + tlen, &shared_mark, 1);
         upsert_topic(prax, topic2, tlen + 1);
         memcpy((void*)topic2 + tlen + 1, (void*)share, slen);
@@ -161,7 +165,7 @@ static int insert_subscription(rax* prax, const char* topic_in, const uint64_t c
         memcpy((void*)topic2 + tlen + 1 + slen, (void*)clientv, clen);
         raxInsert(prax, (uint8_t*)topic2, tlen + 1 + slen + clen, NULL, NULL); // insert the client
     }
-    else { // normal subscription hierarchy
+    else { // normal subscription sub-hierarchy
         memcpy((void*)topic2 + tlen, &client_mark, 1);
         upsert_topic(prax, topic2, tlen + 1);
         memcpy((void*)topic2 + tlen + 1, (void*)clientv, clen);
@@ -170,7 +174,6 @@ static int insert_subscription(rax* prax, const char* topic_in, const uint64_t c
 
     return 0;
 }
-
 
 int topic_fun(void) {
     rax* prax = raxNew();
@@ -184,23 +187,23 @@ int topic_fun(void) {
         "sport/tennis/matches:1;2;3",
         "sport/tennis/matches/italy/#:4",
         "sport/tennis/matches/italy/#:5",
-        // "sport/tennis/matches/united states/amateur/+:6",
-        // "sport/tennis/matches/#:7;8",
-        // "sport/tennis/matches/+/professional/+:3;5",
-        // "sport/tennis/matches/+/amateur/#:9",
-        // "sport/tennis/matches/italy/professional/i6:12;1",
-        // "sport/tennis/matches/italy/professional/i5:2",
-        // "sport/tennis/matches/ethiopia/professional/e4:11;7;1",
-        // "sport/tennis/matches/england/professional/e1:10",
-        // "sport/tennis/matches/england/professional/e2:13;9",
-        // "sport/tennis/matches/england/professional/e3:9;13",
-        // "sport/tennis/matches/france/professional/f4:14",
-        // "sport/tennis/matches/france/amateur/af1:6",
-        // "sport/tennis/matches/united states/amateur/au2:2;4;8;10",
-        // "/foo:1;2",
-        // "/foo/:3;5",
-        // "bar:2;3",
-        // "//:15;16"
+        "sport/tennis/matches/united states/amateur/+:6",
+        "sport/tennis/matches/#:7;8",
+        "sport/tennis/matches/+/professional/+:3;5",
+        "sport/tennis/matches/+/amateur/#:9",
+        "sport/tennis/matches/italy/professional/i6:12;1",
+        "sport/tennis/matches/italy/professional/i5:2",
+        "sport/tennis/matches/ethiopia/professional/e4:11;7;1",
+        "sport/tennis/matches/england/professional/e1:10",
+        "sport/tennis/matches/england/professional/e2:13;9",
+        "sport/tennis/matches/england/professional/e3:9;13",
+        "sport/tennis/matches/france/professional/f4:14",
+        "sport/tennis/matches/france/amateur/af1:6",
+        "sport/tennis/matches/united states/amateur/au2:2;4;8;10",
+        "/foo:1;2",
+        "/foo/:3;5",
+        "bar:2;3",
+        "//:15;16"
     };
 
     size_t numtopics = sizeof(subtopicv) / sizeof(subtopicv[0]);
