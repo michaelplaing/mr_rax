@@ -50,60 +50,34 @@ static int tokenize_topic(char* topic, char** ptopicv) {
     return numtokens;
 }
 
-static int subtree_search(raxIterator *piter, const char* topic) {
-    raxIterator iter = *piter;
-    size_t len = strlen(topic);
-    char* tokenv[MAX_TOKENS];
-    char topic2[len + 1];
-    char topic3[len + 1];
-    strlcpy(topic2, topic, MAX_TOPIC_LEN);
-    strlcpy(topic3, topic, MAX_TOPIC_LEN);
-    size_t numtokens = tokenize_topic(topic2, tokenv);
-    printf("\nsubtree parent:: topic: '%s'; numtokens: %lu\n", topic, numtokens);
-
-    // iterate subtree
-    raxSeek(&iter, ">", (uint8_t*)topic, len);
-    topic3[len - 1] = 0xff;
-
-    char token_prev[MAX_TOKEN_LEN] = "";
-    while(raxNext(&iter) && raxCompare(&iter, "<", (uint8_t*)topic3, len)) {
-        char cv[iter.key_len + 1];
-        snprintf(cv, iter.key_len + 1, "%s", iter.key);
-        tokenize_topic(cv, tokenv);
-
-        // get unique immediate child tokens
-        if (strcmp(tokenv[numtokens], token_prev) != 0) {
-            printf("child: '%s' (%.*s:%lu)\n", tokenv[numtokens], (int)iter.key_len, (char*)iter.key, (uintptr_t)iter.data);
-            strlcpy(token_prev, tokenv[numtokens], MAX_TOKEN_LEN);
-        }
+static int get_normalized_topic(const char* topic_in, char* topic) {
+    if (topic_in[0] == '$') {
+        snprintf(topic, strlen(topic_in) + 3, "$/%s", topic_in);
+    }
+    else {
+        snprintf(topic, strlen(topic_in) + 3, "@/%s", topic_in);
     }
 
     return 0;
 }
 
-static int get_topic(const char* topic_in, char* topic, char* share) {
-    size_t tlen_in = strlen(topic_in);
-    char topic_in2[tlen_in + 1];
-    char topic_in3[tlen_in + 1];
+static int get_subscribe_topic(const char* subtopic, char* topic, char* share) {
+    size_t tlen_in = strlen(subtopic);
+    char subtopic2[tlen_in + 1];
+    char subtopic3[tlen_in + 1];
 
-    if (!strncmp("$share/", topic_in, 7)) {
-        strlcpy(topic_in3, topic_in, tlen_in + 1);
-        strlcpy(share, topic_in3 + 7, tlen_in + 1);
+    if (!strncmp("$share/", subtopic, 7)) {
+        strlcpy(subtopic3, subtopic, tlen_in + 1);
+        strlcpy(share, subtopic3 + 7, tlen_in + 1);
         char* pc = strchr(share, '/');
         *pc = '\0';
-        strlcpy(topic_in2, pc + 1, tlen_in - 7 - strlen(share));
+        strlcpy(subtopic2, pc + 1, tlen_in - 7 - strlen(share));
     }
     else {
-        strlcpy(topic_in2, topic_in, tlen_in + 1);
+        strlcpy(subtopic2, subtopic, tlen_in + 1);
     }
 
-    if (topic_in2[0] == '$') {
-        snprintf(topic, strlen(topic_in2) + 3, "$/%s", topic_in2);
-    }
-    else {
-        snprintf(topic, strlen(topic_in2) + 3, "@/%s", topic_in2);
-    }
-
+    get_normalized_topic(subtopic2, topic);
     return 0;
 }
 
@@ -133,15 +107,14 @@ static int upsert_topic_tree(rax* prax, const char* topic) {
 }
 
 
-static int insert_subscription(rax* prax, const char* topic_in, const uint64_t client) {
-    size_t tlen_in = strlen(topic_in);
+static int insert_subscription(rax* prax, const char* subtopic, const uint64_t client) {
+    size_t tlen_in = strlen(subtopic);
     char topic[tlen_in + 3];
     char share[tlen_in + 1];
     share[0] = '\0';
 
-    // get topic
-    get_topic(topic_in, topic, share);
-    // printf("topic: '%s'; client: %llu; share: '%s'\n", topic, client, share);
+    // get topic and share name if any
+    get_subscribe_topic(subtopic, topic, share);
 
     // insert/update topic & tree incrementing client counts
     upsert_topic_tree(prax, topic);
@@ -165,7 +138,7 @@ static int insert_subscription(rax* prax, const char* topic_in, const uint64_t c
         memcpy((void*)topic2 + tlen + 1 + slen, (void*)clientv, clen);
         raxInsert(prax, (uint8_t*)topic2, tlen + 1 + slen + clen, NULL, NULL); // insert the client
     }
-    else { // normal subscription sub-hierarchy
+    else { // regular subscription sub-hierarchy
         memcpy((void*)topic2 + tlen, &client_mark, 1);
         upsert_topic(prax, topic2, tlen + 1);
         memcpy((void*)topic2 + tlen + 1, (void*)clientv, clen);
@@ -175,10 +148,39 @@ static int insert_subscription(rax* prax, const char* topic_in, const uint64_t c
     return 0;
 }
 
+static int get_matching_clients(rax* prax, const char* pubtopic, rax* crax) {
+    size_t tlen = strlen(pubtopic) + 2;
+    char topic[tlen + 1];
+    get_normalized_topic(pubtopic, topic);
+
+    raxIterator iter;
+    raxStart(&iter, prax);
+    raxIterator iter2;
+    raxStart(&iter2, prax);
+
+    // get regular subs
+    topic[tlen] = client_mark;
+    raxSeekChildren(&iter, (uint8_t*)topic, tlen + 1);
+    while(raxNextChild(&iter)) raxTryInsert(crax, iter.key + iter.key_len - 8, 8, NULL, NULL);
+
+    // get shared subs
+    topic[tlen] = shared_mark;
+    raxSeekChildren(&iter, (uint8_t*)topic, tlen + 1);
+
+    while(raxNextChild(&iter)) {
+        raxSeekChildren(&iter2, iter.key, iter.key_len);
+        while(raxNextChild(&iter2)) raxTryInsert(crax, iter2.key + iter2.key_len - 8, 8, NULL, NULL);
+    }
+
+    raxStop(&iter2);
+    raxStop(&iter);
+    return 0;
+}
+
 int topic_fun(void) {
     rax* prax = raxNew();
 
-    char* subtopicv[] = {
+    char* subtopicclientv[] = {
         "$share/bom/bip/bop:21",
         "$share/bom/sport/tennis/matches:22;23",
         "$share/bip/sport/tennis/matches:23;24",
@@ -190,42 +192,43 @@ int topic_fun(void) {
         "sport/tennis/matches/united states/amateur/+:6",
         "sport/tennis/matches/#:7;8",
         "sport/tennis/matches/+/professional/+:3;5",
-        "sport/tennis/matches/+/amateur/#:9",
-        "sport/tennis/matches/italy/professional/i6:12;1",
-        "sport/tennis/matches/italy/professional/i5:2",
-        "sport/tennis/matches/ethiopia/professional/e4:11;7;1",
-        "sport/tennis/matches/england/professional/e1:10",
-        "sport/tennis/matches/england/professional/e2:13;9",
-        "sport/tennis/matches/england/professional/e3:9;13",
-        "sport/tennis/matches/france/professional/f4:14",
-        "sport/tennis/matches/france/amateur/af1:6",
-        "sport/tennis/matches/united states/amateur/au2:2;4;8;10",
-        "/foo:1;2",
-        "/foo/:3;5",
-        "bar:2;3",
-        "//:15;16"
+        // "sport/tennis/matches/+/amateur/#:9",
+        // "sport/tennis/matches/italy/professional/i6:12;1",
+        // "sport/tennis/matches/italy/professional/i5:2",
+        // "sport/tennis/matches/ethiopia/professional/e4:11;7;1",
+        // "sport/tennis/matches/england/professional/e1:10",
+        // "sport/tennis/matches/england/professional/e2:13;9",
+        // "sport/tennis/matches/england/professional/e3:9;13",
+        // "sport/tennis/matches/france/professional/f4:14",
+        // "sport/tennis/matches/france/amateur/af1:6",
+        // "sport/tennis/matches/united states/amateur/au2:2;4;8;10",
+        // "/foo:1;2",
+        // "/foo/:3;5",
+        // "bar:2;3",
+        // "//:15;16"
     };
 
-    size_t numtopics = sizeof(subtopicv) / sizeof(subtopicv[0]);
+    size_t numtopics = sizeof(subtopicclientv) / sizeof(subtopicclientv[0]);
 
     char* tokenv[MAX_TOKENS];
     size_t numtokens;
     char subtopic[MAX_TOPIC_LEN];
+    char subtopicclient[MAX_TOPIC_LEN];
     char topic[MAX_TOPIC_LEN];
     char topic2[MAX_TOPIC_LEN];
     char topic3[MAX_TOPIC_LEN];
 
     for (int i = 0; i < numtopics; i++) {
-        strcpy(subtopic, subtopicv[i]);
-        char* pc = strchr(subtopic, ':');
+        strcpy(subtopicclient, subtopicclientv[i]);
+        char* pc = strchr(subtopicclient, ':');
         *pc = '\0';
-        strlcpy(topic, subtopic, MAX_TOPIC_LEN);
+        strlcpy(subtopic, subtopicclient, MAX_TOPIC_LEN);
         char *unparsed_clients = pc + 1;
         char *clientstr;
 
         while ((clientstr = strsep(&unparsed_clients, ";")) != NULL) {
             uint64_t client = strtoull(clientstr, NULL, 0);
-            insert_subscription(prax, topic, client);
+            insert_subscription(prax, subtopic, client);
         }
     }
 
@@ -271,6 +274,27 @@ int topic_fun(void) {
         puts("");
     }
 
+    char pubtopic[] = "sport/tennis/matches";
+    printf("get matching clients for '%s'\n", pubtopic);
+    rax* crax = raxNew();
+    get_matching_clients(prax, pubtopic, crax);
+    raxIterator citer;
+    raxStart(&citer, crax);
+    raxSeek(&citer, "^", NULL, 0);
+
+    while(raxNext(&citer)) {
+        uint64_t client = 0;
+        for (int i = 0; i < 8; i++) client += citer.key[i] << ((8 - i - 1) * 8);
+        printf(" %llu", client);
+    }
+
+    puts("");
+
+    raxShow(crax);
+
+    raxStop(&citer);
+    raxFree(crax);
+
 /*
     rax* brax = raxNew();
     rax* nrax = raxNew();
@@ -306,7 +330,7 @@ int topic_fun(void) {
     }
 */
 
-    raxShow(prax);
+    // raxShow(prax);
 
 /*
     raxIterator iter;
@@ -363,10 +387,6 @@ int topic_fun(void) {
 
     if (match_result != PLUS_MATCH) topic[0] = '\0';
     printf("wildcard search result topic: %s\n", topic);
-
-    // subtree
-    // strlcpy(topic, "@/sport/tennis/matches", MAX_TOPIC_LEN);
-    subtree_search(&iter, topic);
 
     printf("seek topic: %s\n", topic);
     raxSeekChildren(&iter, (uint8_t*)topic, strlen(topic));
