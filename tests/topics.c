@@ -148,7 +148,7 @@ static int insert_subscription(rax* prax, const char* subtopic, const uint64_t c
     return 0;
 }
 
-static int get_matching_clients(rax* prax, const char* pubtopic, rax* crax) {
+static int get_clients(rax* prax, const char* pubtopic, rax* crax) {
     size_t tlen = strlen(pubtopic) + 2;
     char topic[tlen + 1];
     get_normalized_topic(pubtopic, topic);
@@ -168,7 +168,7 @@ static int get_matching_clients(rax* prax, const char* pubtopic, rax* crax) {
     raxSeekChildren(&iter, (uint8_t*)topic, tlen + 1);
 
     while(raxNextChild(&iter)) { // randomly pick one client per share
-        int choice = arc4random() % (uintptr_t)(iter.data); // client count
+        int choice = arc4random() % (uintptr_t)(iter.data); // iter.data is the client count
         raxSeekChildren(&iter2, iter.key, iter.key_len);
         int i = 0;
         while(raxNextChild(&iter2) && i < choice) i++;
@@ -280,7 +280,7 @@ int topic_fun(void) {
     char pubtopic[] = "sport/tennis/matches";
     printf("get matching clients for '%s'\n", pubtopic);
     rax* crax = raxNew();
-    get_matching_clients(prax, pubtopic, crax);
+    get_clients(prax, pubtopic, crax);
     raxIterator citer;
     raxStart(&citer, crax);
     raxSeek(&citer, "^", NULL, 0);
