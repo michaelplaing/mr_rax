@@ -1440,7 +1440,11 @@ int raxIteratorNextChildStep(raxIterator *it) {
                 memcpy(&it->node, cp, sizeof(it->node)); // child node is now current
 
                 while(1) {
-                    if (it->node->iskey) return 1;
+                    if (it->node->iskey) {
+                        it->data = raxGetData(it->node);
+                        return 1;
+                    }
+
                     int children = it->node->iscompr ? 1 : it->node->size;
 
                     if (children) {
@@ -1800,7 +1804,10 @@ int raxSeekChildren(raxIterator *it, unsigned char *key, size_t len) {
             ) return 0;
 
             memcpy(&it->node, cp, sizeof(it->node));
-            if (it->node->iskey) return 1;
+            if (it->node->iskey) {
+                it->data = raxGetData(it->node);
+                return 1;
+            }
         }
         else {
             it->flags |= RAX_ITER_EOF;

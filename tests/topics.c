@@ -167,9 +167,12 @@ static int get_matching_clients(rax* prax, const char* pubtopic, rax* crax) {
     topic[tlen] = shared_mark;
     raxSeekChildren(&iter, (uint8_t*)topic, tlen + 1);
 
-    while(raxNextChild(&iter)) {
+    while(raxNextChild(&iter)) { // randomly pick one client per share
+        int choice = arc4random() % (uintptr_t)(iter.data); // client count
         raxSeekChildren(&iter2, iter.key, iter.key_len);
-        while(raxNextChild(&iter2)) raxTryInsert(crax, iter2.key + iter2.key_len - 8, 8, NULL, NULL);
+        int i = 0;
+        while(raxNextChild(&iter2) && i < choice) i++;
+        raxTryInsert(crax, iter2.key + iter2.key_len - 8, 8, NULL, NULL);
     }
 
     raxStop(&iter2);
@@ -182,8 +185,8 @@ int topic_fun(void) {
 
     char* subtopicclientv[] = {
         "$share/bom/bip/bop:21",
-        "$share/bom/sport/tennis/matches:22;23",
-        "$share/bip/sport/tennis/matches:23;24",
+        "$share/bom/sport/tennis/matches:1;2;3;22;23",
+        "$share/bip/sport/tennis/matches:23;24;4;5;6;2;3",
         "$sys/baz/bam:20",
         "$share/foo/$sys/baz/bam:25",
         "sport/tennis/matches:1;2;3",
@@ -290,7 +293,7 @@ int topic_fun(void) {
 
     puts("");
 
-    raxShow(crax);
+    // raxShow(crax);
 
     raxStop(&citer);
     raxFree(crax);
