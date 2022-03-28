@@ -88,7 +88,7 @@ static int upsert_topic(rax* prax, char* topic, size_t len) {
     return 0;
 }
 
-static int upsert_topic_tree(rax* prax, const char* topic) {
+static int upsert_parent_topic_tree(rax* prax, const char* topic) {
     size_t tlen = strlen(topic);
     char* tokenv[MAX_TOKENS];
     char topic2[tlen + 1];
@@ -97,7 +97,7 @@ static int upsert_topic_tree(rax* prax, const char* topic) {
     size_t numtokens = tokenize_topic(topic3, tokenv); // modifies topic3 and points into it from tokenv
     topic2[0] = '\0';
 
-    for (int i = 0; i < numtokens; i++) {
+    for (int i = 0; i < (numtokens - 1); i++) {
         strlcat(topic2, tokenv[i], tlen + 1);
         upsert_topic(prax, topic2, strlen(topic2));
         strlcat(topic2, "/", tlen + 1);
@@ -105,7 +105,6 @@ static int upsert_topic_tree(rax* prax, const char* topic) {
 
     return 0;
 }
-
 
 static int insert_subscription(rax* prax, const char* subtopic, const uint64_t client) {
     size_t tlen_in = strlen(subtopic);
@@ -116,8 +115,10 @@ static int insert_subscription(rax* prax, const char* subtopic, const uint64_t c
     // get topic and share name if any
     get_subscribe_topic(subtopic, topic, share);
 
-    // insert/update topic & tree incrementing client counts
-    upsert_topic_tree(prax, topic);
+    // insert/update topic & parent tree incrementing client counts
+    upsert_parent_topic_tree(prax, topic); // sets node->hasmorelevels for each level
+    size_t tlen = strlen(topic);
+    upsert_topic(prax, topic, tlen);
 
     // get the client bytes in network order (big endian)
     size_t clen = sizeof(client); // should be 8
@@ -125,7 +126,6 @@ static int insert_subscription(rax* prax, const char* subtopic, const uint64_t c
     for (int i = 0; i < clen; i++) clientv[i] = client >> ((clen - i - 1) * 8) & 0xff;
 
     // insert client
-    size_t tlen = strlen(topic);
     char topic2[tlen + 1 + clen];
     strlcpy(topic2, topic, tlen + 1);
     size_t slen = strlen(share);
@@ -148,30 +148,25 @@ static int insert_subscription(rax* prax, const char* subtopic, const uint64_t c
     return 0;
 }
 
-static int get_clients(rax* prax, const char* pubtopic, rax* crax) {
-    size_t tlen = strlen(pubtopic) + 2;
-    char topic[tlen + 1];
-    get_normalized_topic(pubtopic, topic);
-
+static int get_topic_clients(rax* prax, rax* crax, uint8_t* key, size_t key_len) {
     raxIterator iter;
     raxStart(&iter, prax);
     raxIterator iter2;
     raxStart(&iter2, prax);
 
     // get regular subs
-    topic[tlen] = client_mark;
-    raxSeekChildren(&iter, (uint8_t*)topic, tlen + 1);
+    key[key_len] = client_mark;
+    raxSeekChildren(&iter, key, key_len + 1);
     while(raxNextChild(&iter)) raxTryInsert(crax, iter.key + iter.key_len - 8, 8, NULL, NULL);
 
     // get shared subs
-    topic[tlen] = shared_mark;
-    raxSeekChildren(&iter, (uint8_t*)topic, tlen + 1);
+    key[key_len] = shared_mark;
+    raxSeekChildren(&iter, key, key_len + 1);
 
     while(raxNextChild(&iter)) { // randomly pick one client per share
         int choice = arc4random() % (uintptr_t)(iter.data); // iter.data is the client count
         raxSeekChildren(&iter2, iter.key, iter.key_len);
-        int i = 0;
-        while(raxNextChild(&iter2) && i < choice) i++;
+        for (int i = 0; raxNextChild(&iter2) && i < choice; i++);
         raxTryInsert(crax, iter2.key + iter2.key_len - 8, 8, NULL, NULL);
     }
 
@@ -180,12 +175,82 @@ static int get_clients(rax* prax, const char* pubtopic, rax* crax) {
     return 0;
 }
 
+static int traverse_subscriptions(rax* prax, rax* crax, char* topic, int level, char** tokenv, size_t numtokens) {
+    // printf("traverse_subscriptions:: topic: '%s'; level: %d; numtokens: %lu; tokenv[level]: %s\n", topic, level, numtokens, tokenv[level]);
+    raxIterator iter;
+    raxStart(&iter, prax);
+    char* token = tokenv[level];
+    size_t klen = level == 0 ? 1 : strlen(topic);
+
+    while (level < numtokens) {
+        strlcat(topic, token, MAX_TOPIC_LEN);
+        token = level == (numtokens - 1) ? "#" : tokenv[level + 1];
+        size_t toklen = strlen(token);
+        // printf("raxSeekChildren:: topic: %s; level: %d\n", topic, level);
+        raxSeekChildren(&iter, (uint8_t*)topic, strlen(topic));
+
+        while(raxNextChild(&iter) && iter.key[iter.key_len - 1] < client_mark) {
+            // printf("raxNextChild:: iter.key_len: %lu; iter.key: %.*s\n", iter.key_len, (int)iter.key_len, iter.key);
+            if (iter.key[iter.key_len - 1] == '#') {
+                // printf("match #\n");
+                get_topic_clients(prax, crax, iter.key, iter.key_len);
+            }
+            else if (level == (numtokens - 1)) {
+                // printf("level == (numtokens - 1)\n");
+                break;
+            }
+            else if (iter.key[iter.key_len - 1] == '+') {
+                // printf("match +\n");
+                if (level == (numtokens - 2)) {
+                    // printf("level == (numtokens - 2)\n");
+                    get_topic_clients(prax, crax, iter.key, iter.key_len);
+                }
+                else {
+                    char topic2[MAX_TOPIC_LEN];
+                    snprintf(topic2, MAX_TOPIC_LEN, "%s/", topic);
+                    char *token2v[numtokens];
+                    for (int i = 0; i < numtokens; i++) token2v[i] = tokenv[i];
+                    token2v[level + 1] = "+";
+                    traverse_subscriptions(prax, crax, topic2, level + 1, token2v, numtokens);
+                }
+            }
+            else if (iter.key_len - klen - 1 == toklen && !memcmp(iter.key + klen + 1, token, toklen)) {
+                // printf("match token: %s\n", token);
+                if (level == (numtokens - 2)) {
+                    printf("level == (numtokens - 2)\n");
+                    get_topic_clients(prax, crax, iter.key, iter.key_len);
+                }
+            }
+        }
+
+        strlcat(topic, "/", MAX_TOPIC_LEN);
+        level++;
+    }
+
+    raxStop(&iter);
+    // printf("traverse_subscriptions done\n");
+    return 0;
+}
+
+static int get_clients(rax* prax, rax* crax, char* topic) {
+    size_t tlen = strlen(topic);
+    char* tokenv[MAX_TOKENS];
+    char topic2[MAX_TOPIC_LEN];
+    char topic3[MAX_TOPIC_LEN];
+    strlcpy(topic3, topic, MAX_TOPIC_LEN);
+    size_t numtokens = tokenize_topic(topic3, tokenv); // modifies topic3 and points into it from tokenv
+    topic2[0] = '\0';
+    int level = 0;
+    traverse_subscriptions(prax, crax, topic2, level, tokenv, numtokens);
+    return 0;
+}
+
 int topic_fun(void) {
     rax* prax = raxNew();
 
     char* subtopicclientv[] = {
         "$share/bom/bip/bop:21",
-        "$share/bom/sport/tennis/matches:1;2;3;22;23",
+        "$share/bom/sport/tennis/matches/#:1;2;3;22;23",
         "$share/bip/sport/tennis/matches:23;24;4;5;6;2;3",
         "$sys/baz/bam:20",
         "$share/foo/$sys/baz/bam:25",
@@ -195,16 +260,17 @@ int topic_fun(void) {
         "sport/tennis/matches/united states/amateur/+:6",
         "sport/tennis/matches/#:7;8",
         "sport/tennis/matches/+/professional/+:3;5",
-        // "sport/tennis/matches/+/amateur/#:9",
-        // "sport/tennis/matches/italy/professional/i6:12;1",
-        // "sport/tennis/matches/italy/professional/i5:2",
-        // "sport/tennis/matches/ethiopia/professional/e4:11;7;1",
-        // "sport/tennis/matches/england/professional/e1:10",
-        // "sport/tennis/matches/england/professional/e2:13;9",
-        // "sport/tennis/matches/england/professional/e3:9;13",
-        // "sport/tennis/matches/france/professional/f4:14",
-        // "sport/tennis/matches/france/amateur/af1:6",
-        // "sport/tennis/matches/united states/amateur/au2:2;4;8;10",
+        "sport/tennis/matches/+/amateur/#:9",
+        "sport/tennis/matches/italy/professional/i6:12;1",
+        "sport/tennis/matches/italy/professional/i5:2",
+        "sport/tennis/matches/ethiopia/professional/e4:11;7;1",
+        "sport/tennis/matches/england/professional/e1:10",
+        "sport/tennis/matches/england/professional/e2:13;9",
+        "sport/tennis/matches/england/professional/e3:9;13",
+        "sport/tennis/matches/france/professional/f4:14",
+        "sport/tennis/matches/france/amateur/af1:6",
+        "sport/+/+/+/amateur/#:10;11;9",
+        "sport/tennis/matches/united states/amateur/au2:2;4;8;10",
         // "/foo:1;2",
         // "/foo/:3;5",
         // "bar:2;3",
@@ -277,10 +343,14 @@ int topic_fun(void) {
         puts("");
     }
 
-    char pubtopic[] = "sport/tennis/matches";
+    // char pubtopic[] = "sport/tennis/matches";
+    char pubtopic[] = "sport/tennis/matches/france/amateur/af1";
     printf("get matching clients for '%s'\n", pubtopic);
     rax* crax = raxNew();
-    get_clients(prax, pubtopic, crax);
+    get_normalized_topic(pubtopic, topic);
+    // get_topic_clients(prax, topic, crax);
+    get_clients(prax, crax, topic);
+
     raxIterator citer;
     raxStart(&citer, crax);
     raxSeek(&citer, "^", NULL, 0);
