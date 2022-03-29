@@ -216,8 +216,8 @@ static int traverse_subscriptions(rax* prax, rax* crax, char* topic, int level, 
 
         raxSeekChildren(&iter, (uint8_t*)topic, strlen(topic));
 
-        while(raxNextChild(&iter) && iter.key[iter.key_len - 1] < client_mark) {
-            printf("raxNextChild:: iter.key_len: %lu; iter.key: %.*s\n", iter.key_len, (int)iter.key_len, iter.key);
+        while(raxNextChild(&iter)) {
+            // printf("raxNextChild:: iter.key_len: %lu; iter.key: %.*s\n", iter.key_len, (int)iter.key_len, iter.key);
             uint8_t first_char = iter.key[tlen + 1];
 
             if (first_char >= client_mark) {
@@ -228,12 +228,12 @@ static int traverse_subscriptions(rax* prax, rax* crax, char* topic, int level, 
                 get_topic_clients(prax, crax, iter.key, iter.key_len);
                 ishash = true;
 
-                if (level == (numtokens - 1)) { // only '#' is valid at this level so we're done
+                if (level == (numtokens - 1)) { // only '#' is valid at this level
                     // printf("level == (numtokens - 1)\n");
                     break;
                 }
             }
-            else if (level == (numtokens - 1) && first_char > '#') { // no more possible valid children
+            else if (level == (numtokens - 1) && first_char > '#') { // no match possible
                 // printf("level == (numtokens - 1) && iter.key[iter.key_len - 1] > '#'\n");
                 break;
             }
