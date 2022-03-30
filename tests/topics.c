@@ -199,82 +199,44 @@ static int get_topic_clients(rax* prax, rax* crax, uint8_t* key, size_t key_len)
 }
 
 static int traverse_subscriptions(rax* prax, rax* crax, char* topic, int level, char** tokenv, size_t numtokens) {
-    // printf("traverse_subscriptions:: topic: '%s'; level: %d; numtokens: %lu; tokenv[level]: %s\n", topic, level, numtokens, tokenv[level]);
-    raxIterator iter;
-    raxStart(&iter, prax);
+    char topic2[MAX_TOPIC_LEN];
     char* token = tokenv[level];
 
     while (level < numtokens) {
         strlcat(topic, token, MAX_TOPIC_LEN);
-        size_t tlen = level == 0 ? 1 : strlen(topic); // compensate for no leading '/'
         token = level == (numtokens - 1) ? "" : tokenv[level + 1]; // don't overrun tokenv
-        size_t toklen = strlen(token);
-        // printf("raxSeekChildren:: topic: %s; level: %d; token: %s; tlen: %lu\n", topic, level, token, tlen);
-        bool ishash = false;
-        bool isplus = false;
-        bool istoken = false;
 
-        raxSeekChildren(&iter, (uint8_t*)topic, strlen(topic));
-
-        while(raxNextChild(&iter)) {
-            // printf("raxNextChild:: iter.key_len: %lu; iter.key: %.*s\n", iter.key_len, (int)iter.key_len, iter.key);
-            uint8_t first_char = iter.key[tlen + 1];
-
-            if (first_char >= client_mark) {
-                break; // no further matches possible
-            }
-            else if (first_char == '#') {
-                // printf("match #\n");
-                get_topic_clients(prax, crax, iter.key, iter.key_len);
-                ishash = true;
-
-                if (level == (numtokens - 1)) { // only '#' is valid at this level
-                    // printf("level == (numtokens - 1)\n");
-                    break;
-                }
-            }
-            else if (level == (numtokens - 1) && first_char > '#') { // no match possible
-                // printf("level == (numtokens - 1) && iter.key[iter.key_len - 1] > '#'\n");
-                break;
-            }
-            else if (first_char == '+') {
-                // printf("match +\n");
-                isplus = true;
-
-                if (level == (numtokens - 2)) {
-                    // printf("level == (numtokens - 2)\n");
-                    get_topic_clients(prax, crax, iter.key, iter.key_len);
-                }
-                else {
-                    char topic2[MAX_TOPIC_LEN];
-                    snprintf(topic2, MAX_TOPIC_LEN, "%s/", topic);
-                    char *token2v[numtokens];
-                    for (int i = 0; i < numtokens; i++) token2v[i] = tokenv[i];
-                    token2v[level + 1] = "+";
-                    traverse_subscriptions(prax, crax, topic2, level + 1, token2v, numtokens);
-                }
-            }
-            else if (!istoken && iter.key_len - tlen - 1 == toklen && !memcmp(iter.key + tlen + 1, token, toklen)) {
-                // printf("match token: %s\n", token);
-                istoken = true;
-
-                if (level == (numtokens - 2)) {
-                    // printf("level == (numtokens - 2)\n");
-                    get_topic_clients(prax, crax, iter.key, iter.key_len);
-                }
-
-                if (first_char > '+') break; // no further matches possible
-            }
-
-            if (ishash && isplus && istoken) break; // no further matches possible
+        snprintf(topic2, MAX_TOPIC_LEN, "%s/#", topic);
+        if (raxFind(prax, (uint8_t*)topic2, strlen(topic2)) != raxNotFound) {
+            get_topic_clients(prax, crax, (uint8_t*)topic2, strlen(topic2));
         }
+
+        if (level == (numtokens - 1)) break; // only '#' is valid at this level
+
+        snprintf(topic2, MAX_TOPIC_LEN, "%s/+", topic);
+        if (raxFind(prax, (uint8_t*)topic2, strlen(topic2)) != raxNotFound) {
+            if (level == (numtokens - 2)) {
+                get_topic_clients(prax, crax, (uint8_t*)topic2, strlen(topic2));
+            }
+            else {
+                char *token2v[numtokens];
+                for (int i = 0; i < numtokens; i++) token2v[i] = tokenv[i];
+                token2v[level + 1] = "+";
+                topic2[strlen(topic2) - 1] = '\0'; // trim the '+'
+                traverse_subscriptions(prax, crax, topic2, level + 1, token2v, numtokens);
+            }
+        }
+
+        snprintf(topic2, MAX_TOPIC_LEN, "%s/%s", topic, token);
+        if (
+            raxFind(prax, (uint8_t*)topic2, strlen(topic2)) != raxNotFound &&
+            level == (numtokens - 2)
+        )  get_topic_clients(prax, crax, (uint8_t*)topic2, strlen(topic2));
 
         strlcat(topic, "/", MAX_TOPIC_LEN);
         level++;
     }
 
-    raxStop(&iter);
-    // printf("traverse_subscriptions done\n");
     return 0;
 }
 
@@ -295,8 +257,8 @@ int topic_fun(void) {
 
     char* subtopicclientv[] = {
         "$share/bom/bip/bop:21",
-        "$share/bom/sport/tennis/matches/#:1;2;3;22;23",
-        "$share/bip/sport/tennis/matches:23;24;4;5;6;2;3",
+        "$share/bom/sport/tennis/matches/#:1001;1002;1003;1022;1023",
+        "$share/bip/sport/tennis/matches:2023;2024;2004;2005;2006;2002;2003",
         "$sys/baz/bam:20",
         "$share/foo/$sys/baz/bam:25",
         "sport/tennis/matches:1;2;3",
@@ -315,10 +277,9 @@ int topic_fun(void) {
         "sport/tennis/matches/france/professional/f4:14",
         "sport/tennis/matches/france/amateur/af1:6",
         "sport/tennis/matches/france/amateur/af2:66",
-        // "sport/tennis/matches/france/amateur/af1/#:99",
+        "sport/tennis/matches/france/amateur/af1/#:99",
         "sport/tennis/matches/france/amateur/af1/\":999",
         "sport/tennis/matches/france/amateur/af1/foo:9999",
-        "s:99",
         "sport/+/+/+/amateur/#:10;11;9",
         "sport/tennis/matches/united states/amateur/au2:2;4;8;10",
         "/foo:1;2",
@@ -327,6 +288,9 @@ int topic_fun(void) {
         "bar:2;3",
         "//:15;16",
         "#:100",
+        "s:99",
+        "s/#:999",
+        "foo:9",
     };
 
     size_t numtopics = sizeof(subtopicclientv) / sizeof(subtopicclientv[0]);
@@ -398,12 +362,27 @@ int topic_fun(void) {
     }
 
     // char pubtopic[] = "sport/tennis/matches";
-    char pubtopic[] = "sport/tennis/matches/france/amateur/af1";
+    // char pubtopic[] = "sport/tennis/matches/france/amateur/af1";
     // char pubtopic[] = "s";
+    char pubtopic[] = "/foo/";
     printf("get matching clients for '%s'\n", pubtopic);
-    rax* crax = raxNew();
     get_normalized_topic(pubtopic, topic);
+    // rax* crax2 = raxNew();
+    // get_clients(prax, crax2, topic);
+    rax* crax = raxNew();
     get_clients(prax, crax, topic);
+
+    // raxIterator citer2;
+    // raxStart(&citer2, crax2);
+    // raxSeek(&citer2, "^", NULL, 0);
+
+    // while(raxNext(&citer2)) {
+    //     uint64_t client = 0;
+    //     for (int i = 0; i < 8; i++) client += citer2.key[i] << ((8 - i - 1) * 8);
+    //     printf(" %llu", client);
+    // }
+
+    // puts("");
 
     raxIterator citer;
     raxStart(&citer, crax);
@@ -420,7 +399,9 @@ int topic_fun(void) {
     // raxShow(crax);
 
     raxStop(&citer);
+    // raxStop(&citer2);
     raxFree(crax);
+    // raxFree(crax2);
 
 /*
     rax* brax = raxNew();
