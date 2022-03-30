@@ -39,8 +39,8 @@ int raxUnion(rax* rax_base, rax* rax_in) {
     return 1;
 }
 
-// static uint8_t empty_mark[] = {0x7f, 0}; // MQTT disallowed control char <DEL>
-static uint8_t empty_mark[] = {0x21, 0}; // for debugging - '!'
+static uint8_t empty_markv[] = {0x7f, 0}; // MQTT disallowed control char <DEL>
+// static uint8_t empty_markv[] = {0x21, 0}; // for debugging - '!'
 
 static int tokenize_topic(char* topic, char** tokenv) {
  // printf("tokenize_topic:: topic: '%s'\n", topic);
@@ -49,7 +49,7 @@ static int tokenize_topic(char* topic, char** tokenv) {
     for (numtokens = 0; numtokens < MAX_TOKENS; numtokens++, tokenv++) {
         *tokenv = strsep(&topic, "/");
         if (*tokenv == NULL) break;
-        if (*tokenv[0] == '\0') *tokenv = (char*)&empty_mark;
+        if (*tokenv[0] == '\0') *tokenv = (char*)&empty_markv;
     }
 
     return numtokens;
@@ -103,9 +103,9 @@ static int get_subscribe_topic(const char* subtopic, char* topic, char* share) {
 
 static int upsert_topic(rax* prax, char* topic, size_t len) {
  // printf("upsert_topic:: topic: '%s'; len: %lu\n", topic, len);
-    uintptr_t count;
-    int try = raxTryInsert(prax, (uint8_t*)topic, len, (void*)1, (void**)&count);
-    if (!try) raxInsert(prax, (uint8_t*)topic, len, (void*)(count + 1), NULL);
+    uintptr_t client_count;
+    int try = raxTryInsert(prax, (uint8_t*)topic, len, (void*)1, (void**)&client_count);
+    if (!try) raxInsert(prax, (uint8_t*)topic, len, (void*)(client_count + 1), NULL);
     return 0;
 }
 
@@ -143,12 +143,11 @@ static int insert_subscription(rax* prax, const char* subtopic, const uint64_t c
     upsert_topic(prax, topic, tlen);
 
     // get the client bytes in network order (big endian)
-    size_t clen = sizeof(client); // should be 8
-    uint8_t clientv[clen];
-    for (int i = 0; i < clen; i++) clientv[i] = client >> ((clen - i - 1) * 8) & 0xff;
+    uint8_t clientv[8];
+    for (int i = 0; i < 8; i++) clientv[i] = client >> ((7 - i) * 8) & 0xff;
 
     // insert client
-    char topic2[tlen + 1 + clen];
+    char topic2[tlen + 1 + 8];
     strlcpy(topic2, topic, tlen + 1);
     size_t slen = strlen(share);
 
@@ -157,14 +156,14 @@ static int insert_subscription(rax* prax, const char* subtopic, const uint64_t c
         upsert_topic(prax, topic2, tlen + 1);
         memcpy((void*)topic2 + tlen + 1, (void*)share, slen);
         upsert_topic(prax, topic2, tlen + 1 + slen);
-        memcpy((void*)topic2 + tlen + 1 + slen, (void*)clientv, clen);
-        raxInsert(prax, (uint8_t*)topic2, tlen + 1 + slen + clen, NULL, NULL); // insert the client
+        memcpy((void*)topic2 + tlen + 1 + slen, (void*)clientv, 8);
+        raxInsert(prax, (uint8_t*)topic2, tlen + 1 + slen + 8, NULL, NULL); // insert the client
     }
     else { // regular subscription sub-hierarchy
         memcpy((void*)topic2 + tlen, &client_mark, 1);
         upsert_topic(prax, topic2, tlen + 1);
-        memcpy((void*)topic2 + tlen + 1, (void*)clientv, clen);
-        raxInsert(prax, (uint8_t*)topic2, tlen + 1 + clen, NULL, NULL); // insert the client
+        memcpy((void*)topic2 + tlen + 1, (void*)clientv, 8);
+        raxInsert(prax, (uint8_t*)topic2, tlen + 1 + 8, NULL, NULL); // insert the client
     }
 
     return 0;
@@ -367,22 +366,8 @@ int topic_fun(void) {
     char pubtopic[] = "/foo/";
     printf("get matching clients for '%s'\n", pubtopic);
     get_normalized_topic(pubtopic, topic);
-    // rax* crax2 = raxNew();
-    // get_clients(prax, crax2, topic);
     rax* crax = raxNew();
     get_clients(prax, crax, topic);
-
-    // raxIterator citer2;
-    // raxStart(&citer2, crax2);
-    // raxSeek(&citer2, "^", NULL, 0);
-
-    // while(raxNext(&citer2)) {
-    //     uint64_t client = 0;
-    //     for (int i = 0; i < 8; i++) client += citer2.key[i] << ((8 - i - 1) * 8);
-    //     printf(" %llu", client);
-    // }
-
-    // puts("");
 
     raxIterator citer;
     raxStart(&citer, crax);
@@ -399,9 +384,7 @@ int topic_fun(void) {
     // raxShow(crax);
 
     raxStop(&citer);
-    // raxStop(&citer2);
     raxFree(crax);
-    // raxFree(crax2);
 
 /*
     rax* brax = raxNew();
