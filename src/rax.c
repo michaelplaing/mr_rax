@@ -36,6 +36,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <math.h>
+#include <ctype.h>
 #include "mr_rax/rax.h"
 
 #ifndef RAX_MALLOC_INCLUDE
@@ -2018,9 +2019,65 @@ void raxRecursiveShow(int level, int lpad, raxNode *n) {
     }
 }
 
+void raxRecursiveShowHex(int level, int lpad, raxNode *n) {
+    char s = n->iscompr ? '"' : '[';
+    char e = n->iscompr ? '"' : ']';
+
+    int numchars = printf("%c", s);
+    bool all_printable = true;
+    for (int i = 0; i < n->size && all_printable; i++) if (!isprint(n->data[i])) all_printable = false;
+    if (all_printable) {
+        numchars += printf("%.*s", n->size, n->data);
+    }
+    else {
+        if (n->size) numchars += printf("0x");
+        for (int i = 0; i < n->size; i++) numchars += printf("%02x", n->data[i]);
+    }
+    numchars += printf("%c", e);
+
+    if (n->iskey && raxGetData(n)) {
+        numchars += printf("=%p",raxGetData(n));
+    }
+
+    int numchildren = n->iscompr ? 1 : n->size;
+    /* Note that 10 and 4 magic constants are the string length
+     * of " `-(0xhh) " and " -> " respectively. */
+    if (level) {
+        // lpad += (numchildren > 1) ? 10 : 4;
+        lpad += (numchildren > 1) ? 7 : 4;
+        if (numchildren == 1) lpad += numchars;
+    }
+    raxNode **cp = raxNodeFirstChildPtr(n);
+    for (int i = 0; i < numchildren; i++) {
+        // char *branch = " `-(0x%02x) ";
+        char *branch = " `-(%c) ";
+        if (numchildren > 1) {
+            printf("\n");
+            for (int j = 0; j < lpad; j++) putchar(' ');
+            if (isprint(n->data[i])) {
+                printf(branch,n->data[i]);
+            }
+            else {
+                printf(branch,'.');
+            }
+        } else {
+            printf(" -> ");
+        }
+        raxNode *child;
+        memcpy(&child,cp,sizeof(child));
+        raxRecursiveShowHex(level+1,lpad,child);
+        cp++;
+    }
+}
+
 /* Show a tree, as outlined in the comment above. */
 void raxShow(rax *rax) {
     raxRecursiveShow(0,0,rax->head);
+    putchar('\n');
+}
+
+void raxShowHex(rax *rax) {
+    raxRecursiveShowHex(0,0,rax->head);
     putchar('\n');
 }
 
