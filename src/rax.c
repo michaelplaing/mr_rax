@@ -1805,6 +1805,7 @@ int raxSeekChildren(raxIterator *it, unsigned char *key, size_t len) {
             ) return 0;
 
             memcpy(&it->node, cp, sizeof(it->node));
+
             if (it->node->iskey) {
                 it->data = raxGetData(it->node);
                 return 1;

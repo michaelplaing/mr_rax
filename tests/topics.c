@@ -87,11 +87,11 @@ static int get_subscribe_topic(const char* subtopic, char* topic, char* share) {
     }
     else {
         char subtopic3[tlen_in + 1];
-        strlcpy(subtopic3, subtopic, tlen_in + 1);
-        strlcpy(share, subtopic3 + 7, tlen_in + 1);
-        char* pc = strchr(share, '/');
+        strlcpy(subtopic3, subtopic + 7, tlen_in + 1);
+        char* pc = strchr(subtopic3, '/');
         *pc = '\0';
-        strlcpy(subtopic2, pc + 1, tlen_in - 7 - strlen(share));
+        strlcpy(share, subtopic3, tlen_in + 1);
+        strlcpy(subtopic2, pc + 1, tlen_in + 1);
     }
 
     get_normalized_topic(subtopic2, topic);
@@ -99,7 +99,7 @@ static int get_subscribe_topic(const char* subtopic, char* topic, char* share) {
 }
 
 static int upsert_topic(rax* prax, char* topic, size_t len) {
-    uintptr_t client_count;
+    uintptr_t client_count; // increment
     int try = raxTryInsert(prax, (uint8_t*)topic, len, (void*)1, (void**)&client_count);
     if (!try) raxInsert(prax, (uint8_t*)topic, len, (void*)(client_count + 1), NULL);
     return 0;
