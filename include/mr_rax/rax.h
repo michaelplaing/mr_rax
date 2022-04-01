@@ -200,16 +200,12 @@ void raxFreeWithCallback(rax *rax, void (*free_callback)(void*));
 void raxStart(raxIterator *it, rax *rt);
 int raxSeek(raxIterator *it, const char *op, unsigned char *ele, size_t len);
 int raxNext(raxIterator *it);
-int raxSeekChildren(raxIterator *it, unsigned char *ele, size_t len);
-int raxSeekSubtree(raxIterator *it, unsigned char *key, size_t len);
-int raxNextChild(raxIterator *it);
 int raxPrev(raxIterator *it);
 int raxRandomWalk(raxIterator *it, size_t steps);
 int raxCompare(raxIterator *iter, const char *op, unsigned char *key, size_t key_len);
 void raxStop(raxIterator *it);
 int raxEOF(raxIterator *it);
 void raxShow(rax *rax);
-void raxShowHex(rax *rax);
 uint64_t raxSize(rax *rax);
 unsigned long raxTouch(raxNode *n);
 void raxSetDebugMsg(int onoff);
@@ -217,5 +213,10 @@ void raxSetDebugMsg(int onoff);
 /* Internal API. May be used by the node callback in order to access rax nodes
  * in a low level way, so this function is exported as well. */
 void raxSetData(raxNode *n, void *data);
+
+// mr_rax additions by ml 20220401
+int raxSeekChildren(raxIterator *it, unsigned char *ele, size_t len);
+int raxNextChild(raxIterator *it);
+void raxShowHex(rax *rax);
 
 #endif

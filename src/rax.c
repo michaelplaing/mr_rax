@@ -1408,68 +1408,6 @@ int raxIteratorNextStep(raxIterator *it, int noup) {
         }
     }
 }
-int raxIteratorNextChildStep(raxIterator *it) {
-    size_t orig_key_len = it->key_len;
-    size_t orig_stack_items = it->stack.items;
-    raxNode *orig_node = it->node;
-
-    while(1) { // ascend/descend repeatedly until the next child key is found
-        unsigned char prevchild = it->key[it->key_len - 1];
-        it->node = raxStackPop(&it->stack); // go up
-
-        if (it->node == it->stop_node) { // have we popped above the seeked key?
-            it->flags |= RAX_ITER_EOF;
-            it->stack.items = orig_stack_items;
-            it->key_len = orig_key_len;
-            it->node = orig_node;
-            return 1;
-        }
-
-        int todel = it->node->iscompr ? it->node->size : 1;
-        raxIteratorDelChars(it, todel);
-
-        while(!it->node->iscompr && it->node->size > 1) { // find the next child node; exit if no children
-            raxNode **cp = raxNodeFirstChildPtr(it->node);
-            int i;
-            for (i = 0; i < it->node->size; i++, cp++) { // data index and child node ptr incremented together
-                if (it->node->data[i] > prevchild) break;
-            }
-
-            if (i != it->node->size) { // found a child subtree to explore
-                if (!raxIteratorAddChars(it, it->node->data + i, 1)) return 0; // add child node char to key_string
-                if (!raxStackPush(&it->stack, it->node)) return 0;
-                memcpy(&it->node, cp, sizeof(it->node)); // child node is now current
-
-                while(1) {
-                    if (it->node->iskey) {
-                        it->data = raxGetData(it->node);
-                        return 1;
-                    }
-
-                    int children = it->node->iscompr ? 1 : it->node->size;
-
-                    if (children) {
-                        if (!raxStackPush(&it->stack,it->node)) return 0;
-                        cp = raxNodeFirstChildPtr(it->node);
-
-                        if (
-                            !raxIteratorAddChars(it, it->node->data, it->node->iscompr ? it->node->size : 1)
-                        ) return 0;
-
-                        memcpy(&it->node, cp, sizeof(it->node));
-                    }
-                    else { // not a key and no children - should this happen?
-                        break; // ignore and trigger ascent
-                    }
-                }
-            }
-            else {
-                break; // done w subtree, ascend again
-            }
-        }
-    }
-}
-
 /* Seek the greatest key in the subtree at the current node. Return 0 on
  * out of memory, otherwise 1. This is an helper function for different
  * iteration functions below. */
@@ -1771,77 +1709,6 @@ int raxNext(raxIterator *it) {
     return 1;
 }
 
-int raxSeekSubtree(raxIterator *it, unsigned char *key, size_t len) {
-    it->stack.items = 0; /* Just resetting. Intialized by raxStart(). */
-    it->flags |= RAX_ITER_JUST_SEEKED;
-    it->flags &= ~RAX_ITER_EOF;
-    it->key_len = 0;
-    it->node = NULL;
-    if (!raxSeekEle(it, "=", key, len)) return 0;
-    if (it->flags & RAX_ITER_EOF) return 1;
-    it->stop_node = raxStackPeek(&it->stack);
-    return 1;
-}
-
-int raxSeekChildren(raxIterator *it, unsigned char *key, size_t len) {
-    it->stack.items = 0;
-    it->flags |= RAX_ITER_JUST_SEEKED;
-    it->flags &= ~RAX_ITER_EOF;
-    it->key_len = 0;
-    it->node = NULL;
-    if (!raxSeek(it, "=", key, len)) return 0;
-    if (it->flags & RAX_ITER_EOF) return 1;
-    it->stop_node = raxStackPeek(&it->stack);
-
-    while(1) { // find the 1st child key
-        int children = it->node->iscompr ? 1 : it->node->size;
-
-        if (children) { // descend trying 1st children
-            if (!raxStackPush(&it->stack,it->node)) return 0;
-            raxNode **cp = raxNodeFirstChildPtr(it->node);
-
-            if (
-                !raxIteratorAddChars(it, it->node->data, it->node->iscompr ? it->node->size : 1)
-            ) return 0;
-
-            memcpy(&it->node, cp, sizeof(it->node));
-
-            if (it->node->iskey) {
-                it->data = raxGetData(it->node);
-                return 1;
-            }
-        }
-        else {
-            it->flags |= RAX_ITER_EOF;
-            return 1;
-        }
-    }
-}
-
-int raxNextChild(raxIterator *it) {
-    if (it->flags & RAX_ITER_EOF) {
-        errno = 0;
-        return 0;
-    }
-
-    if (it->flags & RAX_ITER_JUST_SEEKED) {
-        it->flags &= ~RAX_ITER_JUST_SEEKED;
-        return 1; // return the seeked key which is the 1st child
-    }
-
-    if (!raxIteratorNextChildStep(it)) {
-        errno = ENOMEM;
-        return 0;
-    }
-
-    if (it->flags & RAX_ITER_EOF) {
-        errno = 0;
-        return 0;
-    }
-
-    return 1;
-}
-
 /* Go to the previous element in the scope of the iterator 'it'.
  * If EOF (or out of memory) is reached, 0 is returned, otherwise 1 is
  * returned. In case 0 is returned because of OOM, errno is set to ENOMEM. */
@@ -2020,65 +1887,9 @@ void raxRecursiveShow(int level, int lpad, raxNode *n) {
     }
 }
 
-void raxRecursiveShowHex(int level, int lpad, raxNode *n) {
-    char s = n->iscompr ? '"' : '[';
-    char e = n->iscompr ? '"' : ']';
-
-    int numchars = printf("%c", s);
-    bool all_printable = true;
-    for (int i = 0; i < n->size && all_printable; i++) if (!isprint(n->data[i])) all_printable = false;
-    if (all_printable) {
-        numchars += printf("%.*s", n->size, n->data);
-    }
-    else {
-        if (n->size) numchars += printf("0x");
-        for (int i = 0; i < n->size; i++) numchars += printf("%02x", n->data[i]);
-    }
-    numchars += printf("%c", e);
-
-    if (n->iskey && raxGetData(n)) {
-        numchars += printf("=%p",raxGetData(n));
-    }
-
-    int numchildren = n->iscompr ? 1 : n->size;
-    /* Note that 10 and 4 magic constants are the string length
-     * of " `-(0xhh) " and " -> " respectively. */
-    if (level) {
-        // lpad += (numchildren > 1) ? 10 : 4;
-        lpad += (numchildren > 1) ? 7 : 4;
-        if (numchildren == 1) lpad += numchars;
-    }
-    raxNode **cp = raxNodeFirstChildPtr(n);
-    for (int i = 0; i < numchildren; i++) {
-        // char *branch = " `-(0x%02x) ";
-        char *branch = " `-(%c) ";
-        if (numchildren > 1) {
-            printf("\n");
-            for (int j = 0; j < lpad; j++) putchar(' ');
-            if (isprint(n->data[i])) {
-                printf(branch,n->data[i]);
-            }
-            else {
-                printf(branch,'.');
-            }
-        } else {
-            printf(" -> ");
-        }
-        raxNode *child;
-        memcpy(&child,cp,sizeof(child));
-        raxRecursiveShowHex(level+1,lpad,child);
-        cp++;
-    }
-}
-
 /* Show a tree, as outlined in the comment above. */
 void raxShow(rax *rax) {
     raxRecursiveShow(0,0,rax->head);
-    putchar('\n');
-}
-
-void raxShowHex(rax *rax) {
-    raxRecursiveShowHex(0,0,rax->head);
     putchar('\n');
 }
 
@@ -2138,4 +1949,187 @@ unsigned long raxTouch(raxNode *n) {
         cp++;
     }
     return sum;
+}
+
+// mr_rax additions by ml 20220401
+int raxIteratorNextChildStep(raxIterator* it) {
+    size_t orig_key_len = it->key_len;
+    size_t orig_stack_items = it->stack.items;
+    raxNode* orig_node = it->node;
+
+    while(1) { // ascend/descend repeatedly until the next child key is found
+        unsigned char prevchild = it->key[it->key_len - 1];
+        it->node = raxStackPop(&it->stack); // go up
+
+        if (it->node == it->stop_node) { // have we popped above the seeked key?
+            it->flags |= RAX_ITER_EOF;
+            it->stack.items = orig_stack_items;
+            it->key_len = orig_key_len;
+            it->node = orig_node;
+            return 1;
+        }
+
+        int todel = it->node->iscompr ? it->node->size : 1;
+        raxIteratorDelChars(it, todel);
+
+        while(!it->node->iscompr && it->node->size > 1) { // find the next child node; exit if no children
+            raxNode** cp = raxNodeFirstChildPtr(it->node);
+            int i;
+
+            for (i = 0; i < it->node->size; i++, cp++) { // data index and child node ptr incremented together
+                if (it->node->data[i] > prevchild) break;
+            }
+
+            if (i != it->node->size) { // found a child subtree to explore
+                if (!raxIteratorAddChars(it, it->node->data + i, 1)) return 0; // add child node char to key_string
+                if (!raxStackPush(&it->stack, it->node)) return 0;
+                memcpy(&it->node, cp, sizeof(it->node)); // child node is now current
+
+                while(1) {
+                    if (it->node->iskey) {
+                        it->data = raxGetData(it->node);
+                        return 1;
+                    }
+
+                    int children = it->node->iscompr ? 1 : it->node->size;
+
+                    if (children) {
+                        if (!raxStackPush(&it->stack, it->node)) return 0;
+                        cp = raxNodeFirstChildPtr(it->node);
+
+                        if (
+                            !raxIteratorAddChars(it, it->node->data, it->node->iscompr ? it->node->size : 1)
+                        ) return 0;
+
+                        memcpy(&it->node, cp, sizeof(it->node));
+                    }
+                    else { // not a key and no children - should this happen?
+                        break; // ignore and trigger ascent
+                    }
+                }
+            }
+            else {
+                break; // done w subtree, ascend again
+            }
+        }
+    }
+}
+
+int raxNextChild(raxIterator* it) {
+    if (it->flags & RAX_ITER_EOF) {
+        errno = 0;
+        return 0;
+    }
+
+    if (it->flags & RAX_ITER_JUST_SEEKED) {
+        it->flags &= ~RAX_ITER_JUST_SEEKED;
+        return 1; // return the seeked key which is the 1st child
+    }
+
+    if (!raxIteratorNextChildStep(it)) {
+        errno = ENOMEM;
+        return 0;
+    }
+
+    if (it->flags & RAX_ITER_EOF) {
+        errno = 0;
+        return 0;
+    }
+
+    return 1;
+}
+
+int raxSeekChildren(raxIterator* it, unsigned char* key, size_t len) {
+    it->stack.items = 0;
+    it->flags |= RAX_ITER_JUST_SEEKED;
+    it->flags &= ~RAX_ITER_EOF;
+    it->key_len = 0;
+    it->node = NULL;
+    if (!raxSeek(it, "=", key, len)) return 0;
+    if (it->flags & RAX_ITER_EOF) return 1;
+    it->stop_node = raxStackPeek(&it->stack);
+
+    while(1) { // find the 1st child key
+        int children = it->node->iscompr ? 1 : it->node->size;
+
+        if (children) { // descend trying 1st children
+            if (!raxStackPush(&it->stack, it->node)) return 0;
+            raxNode** cp = raxNodeFirstChildPtr(it->node);
+
+            if (
+                !raxIteratorAddChars(it, it->node->data, it->node->iscompr ? it->node->size : 1)
+            ) return 0;
+
+            memcpy(&it->node, cp, sizeof(it->node));
+
+            if (it->node->iskey) {
+                it->data = raxGetData(it->node);
+                return 1;
+            }
+        }
+        else {
+            it->flags |= RAX_ITER_EOF;
+            return 1;
+        }
+    }
+}
+
+void raxRecursiveShowHex(int level, int lpad, raxNode *n) {
+    char s = n->iscompr ? '"' : '[';
+    char e = n->iscompr ? '"' : ']';
+
+    int numchars = printf("%c", s);
+    bool all_printable = true;
+
+    for (int i = 0; i < n->size && all_printable; i++) all_printable = isprint(n->data[i]);
+
+    if (all_printable) {
+        numchars += printf("%.*s", n->size, n->data);
+    }
+    else {
+        if (n->size) numchars += printf("0x");
+        for (int i = 0; i < n->size; i++) numchars += printf("%02x", n->data[i]);
+    }
+
+    numchars += printf("%c", e);
+    if (n->iskey && raxGetData(n)) numchars += printf("=%p", raxGetData(n));
+    int numchildren = n->iscompr ? 1 : n->size;
+
+    /* Note that 7 and 4 magic constants are the string length
+     * of " `-(x) " and " -> " respectively. */
+    if (level) {
+        lpad += (numchildren > 1) ? 7 : 4;
+        if (numchildren == 1) lpad += numchars;
+    }
+
+    raxNode** cp = raxNodeFirstChildPtr(n);
+
+    for (int i = 0; i < numchildren; i++) {
+        char* branch = " `-(%c) ";
+
+        if (numchildren > 1) {
+            printf("\n");
+            for (int j = 0; j < lpad; j++) putchar(' ');
+
+            if (isprint(n->data[i])) {
+                printf(branch, n->data[i]);
+            }
+            else {
+                printf(branch, '.');
+            }
+        }
+        else {
+            printf(" -> ");
+        }
+
+        raxNode* child;
+        memcpy(&child, cp, sizeof(child));
+        raxRecursiveShowHex(level + 1, lpad, child);
+        cp++;
+    }
+}
+
+void raxShowHex(rax* rax) {
+    raxRecursiveShowHex(0, 0, rax->head);
+    putchar('\n');
 }

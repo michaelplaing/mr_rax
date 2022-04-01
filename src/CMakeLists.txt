@@ -5,8 +5,8 @@ file(GLOB HEADER_LIST CONFIGURE_DEPENDS "${mr_rax_SOURCE_DIR}/include/mr_rax/*.h
 
 add_library(
     mr_rax SHARED
-    rax.c
-    ${HEADER_LIST}
+    mr_rax.c rax.c
+    mr_rax_internal.h ${HEADER_LIST}
 )
 
 target_include_directories(mr_rax PUBLIC ../include)
