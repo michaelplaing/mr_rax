@@ -14,7 +14,7 @@ static uint8_t shared_mark = 0xFF;
 // MQTT disallowed control char used to represent a zero-length token
 static uint8_t empty_tokenv[] = {0x1f, 0};
 
-int insert_subscription(rax* prax, const char* subtopic, const uint64_t client);
-int get_clients(rax* prax, rax* crax, char* topic);
+int mr_insert_subscription(rax* prax, const char* subtopic, const uint64_t client);
+int mr_get_clients(rax* prax, rax* crax, char* topic);
 
 #endif // MR_RAX_H

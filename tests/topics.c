@@ -65,7 +65,7 @@ int topic_fun(void) {
 
         while ((clientstr = strsep(&unparsed_clients, ";")) != NULL) {
             uint64_t client = strtoull(clientstr, NULL, 0);
-            insert_subscription(prax, subtopic, client);
+            mr_insert_subscription(prax, subtopic, client);
         }
     }
 
@@ -77,7 +77,7 @@ int topic_fun(void) {
     // char pubtopic[] = "/foo/";
     printf("get matching clients for '%s'\n", pubtopic);
     rax* crax = raxNew();
-    get_clients(prax, crax, pubtopic);
+    mr_get_clients(prax, crax, pubtopic);
 
     raxIterator citer;
     raxStart(&citer, crax);
