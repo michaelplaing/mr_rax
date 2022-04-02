@@ -46,6 +46,10 @@ int topic_fun(void) {
         // "s:99",
         // "s/#:999",
         // "foo:9;10;11;12",
+        // "foo/bar:1;2",
+        // "$share/baz/foo/bar:3;4",
+        // "+/bar:5",
+        // "foo/#:6",
     };
 
     size_t numtopics = sizeof(subtopicclientv) / sizeof(subtopicclientv[0]);

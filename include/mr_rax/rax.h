@@ -183,6 +183,7 @@ typedef struct raxIterator {
     raxNode *node;          /* Current node. Only for unsafe iteration. */
     raxNode *stop_node;
     raxStack stack;         /* Stack used for unsafe iteration. */
+    raxStack nextchild_stack;
     raxNodeCallback node_cb; /* Optional node callback. Normally set to NULL. */
 } raxIterator;
 

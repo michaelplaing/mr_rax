@@ -1265,6 +1265,7 @@ void raxStart(raxIterator *it, rax *rt) {
     it->data = NULL;
     it->node_cb = NULL;
     raxStackInit(&it->stack);
+    raxStackInit(&it->nextchild_stack);
 }
 
 /* Append characters at the current key string of the iterator 'it'. This
@@ -1958,8 +1959,8 @@ int raxIteratorNextChildStep(raxIterator* it) {
     raxNode* orig_node = it->node;
 
     while(1) { // ascend/descend repeatedly until the next child key is found
-        unsigned char prevchild = it->key[it->key_len - 1];
         it->node = raxStackPop(&it->stack); // go up
+        uintptr_t nextchild_offset = (uintptr_t)raxStackPop(&it->nextchild_stack);
 
         if (it->node == it->stop_node) { // have we popped above the seeked key?
             it->flags |= RAX_ITER_EOF;
@@ -1973,16 +1974,11 @@ int raxIteratorNextChildStep(raxIterator* it) {
         raxIteratorDelChars(it, todel);
 
         while(!it->node->iscompr && it->node->size > 1) { // find the next child node; exit if no children
-            raxNode** cp = raxNodeFirstChildPtr(it->node);
-            int i;
-
-            for (i = 0; i < it->node->size; i++, cp++) { // data index and child node ptr incremented together
-                if (it->node->data[i] > prevchild) break;
-            }
-
-            if (i != it->node->size) { // found a child subtree to explore
-                if (!raxIteratorAddChars(it, it->node->data + i, 1)) return 0; // add child node char to key_string
+            if (nextchild_offset != it->node->size) { // found a child subtree to explore
+                if (!raxIteratorAddChars(it, it->node->data + nextchild_offset, 1)) return 0; // add child node char to key_string
                 if (!raxStackPush(&it->stack, it->node)) return 0;
+                if (!raxStackPush(&it->nextchild_stack, (void*)(nextchild_offset + 1))) return 0;
+                raxNode** cp = raxNodeFirstChildPtr(it->node) + nextchild_offset;
                 memcpy(&it->node, cp, sizeof(it->node)); // child node is now current
 
                 while(1) {
@@ -1995,6 +1991,7 @@ int raxIteratorNextChildStep(raxIterator* it) {
 
                     if (children) {
                         if (!raxStackPush(&it->stack, it->node)) return 0;
+                        if (!raxStackPush(&it->nextchild_stack, (void*)1)) return 0;
                         cp = raxNodeFirstChildPtr(it->node);
 
                         if (
@@ -2054,6 +2051,7 @@ int raxSeekChildren(raxIterator* it, unsigned char* key, size_t len) {
 
         if (children) { // descend trying 1st children
             if (!raxStackPush(&it->stack, it->node)) return 0;
+            if (!raxStackPush(&it->nextchild_stack, (void*)1)) return 0;
             raxNode** cp = raxNodeFirstChildPtr(it->node);
 
             if (
