@@ -12,7 +12,7 @@ More functions will be added to, e.g., delete subscriptions.
 
 This project is set up to use as one of the CMake subprojects in a comprehensive MQTT project(s).
 
-Some additions and minimal modifications have also been made to Rax itself to support the following functions needed by the above:
+Some additions and modifications have also been made to Rax itself to support the following functions needed by the above. These functions have experimental code included to avoid repetitive scanning of node data for the next child node index.
 
 - raxSeekChildren: Seek a key in order to get its immediate child keys.
 
