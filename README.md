@@ -118,6 +118,6 @@ The additions to Rax include raxShowHex. When all the subscriptions above are ap
                                                                                                           `-(.) []
                                                                                                           `-(.) []
 ```
-A full explanation of the notation above is in the Rax README and rax.h; a tricky part is that the character pointing to a key is stored only in the node pointing to the key, not in the key itself.
+A full explanation of the notation above is in the Rax README and rax.h; a tricky part is that first character of a key is stored in the node pointing to the key, not in the key itself. Hence ``[@]`` is the empty root node containing the first and only character of the key node ``@`` to its right and so on.
 
-Each key except for leaf Client IDs has an integer value associated with it which is the count of Client IDs in its subtree. This is currently useful in randomly picking a Client ID when matching a shared subscription and may in future help in dynamic search strategies.
+Each key except for leaf Client IDs has an integer value associated with it which is the count of Client IDs in its subtree, e.g. the ``0x6`` associated with key node ``@``. This is currently useful in randomly picking a Client ID when matching a shared subscription and may in future help with dynamic search strategies.
