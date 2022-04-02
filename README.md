@@ -31,7 +31,8 @@ The internal TC tree is composed of:
 - The root
 - The hierarchy token:
     - ``@`` for the normal hierarchy
-    - ``$`` for all topics starting with '\$' except shared subscriptions
+    - ``$`` for topics starting with '\$'
+- For shared subscriptions, the topic is placed in the hierarchy above and the rest treated as described below.
 - the topic tokens (the 0-length token is represented by ``0x1f`` which is invalid in MQTT)
 - ``/`` as the separator between the above tokens
 
@@ -52,23 +53,23 @@ If the subscription topic is ``foo/bar`` and the client ID is ``1``, then the no
 
 A subscription with a 0-length token looks like this - topic ``foo/bar/``; client ID ``2``:
 
-``@/foo/bar/<0x1f><0xef><0x0000000000000002>``
+``@/foo/bar/<0x1f><0xef><0x0000000000000003>``
 
 A shared subscription is like this - topic ``$share/baz/foo/bar``; client ID ``3``:
 
-``@/foo/bar<0xff>baz<0x0000000000000003>``
+``@/foo/bar<0xff>baz<0x0000000000000004>``
 
 But more interesting if there is more than one client sharing the same subscription:
 
-``@/foo/bar<0xff>baz<0x0000000000000004>``
+``@/foo/bar<0xff>baz<0x0000000000000005>``
 
 A plus wildcard can replace any token - topic ``+/bar``; client ID ``5``:
 
-``@/+/bar<0xef><0x0000000000000005>``
+``@/+/bar<0xef><0x0000000000000006>``
 
 A hash wildcard can be the last token at any level - topic ``foo/#``; client ID ``6``:
 
-``@/foo/#<0xef><0x0000000000000006>``
+``@/foo/#<0xef><0x0000000000000007>``
 
 ### The Rax tree implementation
 
@@ -94,7 +95,7 @@ Due to prefix compression, storage for the 5 keys would look like:
 ↑   ↑   ↑    ↑                   ↑
 ```
 
-When ``@/foo/bar<0xef><0x0000000000000002>`` is also inserted, we get:
+If ``@/foo/bar<0xef><0x0000000000000002>`` is also inserted, we get:
 ```
 @/foo/bar<0xef><0x00000000000000>
 ↑   ↑   ↑    ↑                 \
@@ -106,18 +107,19 @@ When ``@/foo/bar<0xef><0x0000000000000002>`` is also inserted, we get:
 
 The additions to Rax include raxShowHex. When all the subscriptions above are applied to the TC tree the following ASCII art of the Rax internal structures results, illustrating both prefix compression and node compression:
 ```
-[@] -> [/]=0x6 -> [+f]
-                   `-(+) "/bar"=0x1 -> [0xfe]=0x1 -> "0x0000000000000005"=0x1 -> []
-                   `-(f) "oo" -> [/]=0x5 -> [#b]
-                                             `-(#) [0xfe]=0x1 -> "0x0000000000000006"=0x1 -> []
-                                             `-(b) "ar" -> [0xfeff]=0x4
+[@] -> [/]=0x7 -> [+f]
+                   `-(+) "/bar"=0x1 -> [0xfe]=0x1 -> "0x0000000000000006"=0x1 -> []
+                   `-(f) "oo" -> [/]=0x6 -> [#b]
+                                             `-(#) [0xfe]=0x1 -> "0x0000000000000007"=0x1 -> []
+                                             `-(b) "ar" -> [0x2ffeff]=0x5
+                                                            `-(/) [0x1f] -> [0xfe]=0x1 -> "0x0000000000000003"=0x1 -> []
                                                             `-(.) "0x00000000000000"=0x2 -> [0x0102]
                                                                                              `-(.) []
                                                                                              `-(.) []
-                                                            `-(.) "baz"=0x2 -> "0x00000000000000"=0x2 -> [0x0304]
+                                                            `-(.) "baz"=0x2 -> "0x00000000000000"=0x2 -> [0x0405]
                                                                                                           `-(.) []
                                                                                                           `-(.) []
 ```
 A full explanation of the notation above is in the Rax README and rax.h; a tricky part is that first character of a key is stored in the node pointing to the key, not in the key itself. Hence ``[@]`` is the empty root node containing the first and only character of the key node ``@`` to its right and so on.
 
-Each key except for leaf Client IDs has an integer value associated with it which is the count of Client IDs in its subtree, e.g. the ``0x6`` associated with key node ``@``. This is currently useful in randomly picking a Client ID when matching a shared subscription and may in future help with dynamic search strategies.
+Each key except for leaf Client IDs has an integer value associated with it which is the count of Client IDs in its subtree, e.g. the ``0x7`` associated with key node ``@``. This is currently useful in randomly picking a Client ID when matching a shared subscription and may in future help with dynamic search strategies.
