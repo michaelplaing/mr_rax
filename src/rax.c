@@ -2036,14 +2036,17 @@ int raxNextChild(raxIterator* it) {
 }
 
 int raxSeekChildren(raxIterator* it, unsigned char* key, size_t len) {
-    it->stack.items = 0;
-    it->flags |= RAX_ITER_JUST_SEEKED;
-    it->flags &= ~RAX_ITER_EOF;
-    it->key_len = 0;
-    it->node = NULL;
-    if (!raxSeek(it, "=", key, len)) return 0;
+    if (key == NULL) {
+        raxTryInsert(it->rt, (uint8_t*)"", 0, NULL, NULL); // make root a key
+        // it->rt->head->iskey = true; // riskier but may work
+        raxSeek(it, "=", (uint8_t*)"", 0);
+    }
+    else {
+        if (!raxSeek(it, "=", key, len)) return 0;
+        it->stop_node = raxStackPeek(&it->stack); // terminate on ascent above starting node
+    }
+
     if (it->flags & RAX_ITER_EOF) return 1;
-    it->stop_node = raxStackPeek(&it->stack); // terminate on ascent above starting node
 
     while(1) { // find the 1st child key
         int children = it->node->iscompr ? 1 : it->node->size;

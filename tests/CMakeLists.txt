@@ -1,5 +1,4 @@
 file(GLOB HEADER_LIST CONFIGURE_DEPENDS "${mr_rax_SOURCE_DIR}/include/mr_rax/*.h")
-# include_directories(mr_rax PUBLIC ${mr_rax_SOURCE_DIR}/include)
 
 add_executable(
     rax-test
@@ -9,7 +8,7 @@ add_executable(
 
 add_executable(
     topics
-    topics.c rc4rand.c crc16.c
+    topics.c
     ${HEADER_LIST}
 )
 

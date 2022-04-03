@@ -201,7 +201,7 @@ static int mr_probe_subscriptions(rax* prax, rax* crax, char* topic, int level, 
     return 0;
 }
 
-int mr_get_clients(rax* prax, rax* crax, char* pubtopic) {
+int mr_get_clients(rax* prax, rax* crax, const char* pubtopic) {
     char* tokenv[MAX_TOKENS];
     char topic[MAX_TOPIC_LEN];
     char topic2[MAX_TOPIC_LEN];

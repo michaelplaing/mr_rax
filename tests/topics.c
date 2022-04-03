@@ -87,9 +87,10 @@ int topic_fun(void) {
     mr_get_clients(prax, crax, pubtopic);
     raxIterator citer;
     raxStart(&citer, crax);
-    raxSeek(&citer, "^", NULL, 0);
 
-    while(raxNext(&citer)) {
+    raxSeekChildren(&citer, NULL, 0);
+
+    while(raxNextChild(&citer)) {
         uint64_t client = 0;
         for (int i = 0; i < 8; i++) client += citer.key[i] << ((8 - i - 1) * 8);
         printf(" %llu", client);
