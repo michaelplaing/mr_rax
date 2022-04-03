@@ -22,7 +22,7 @@ static int mr_tokenize_topic(char* topic, char** tokenv) {
     return numtokens;
 }
 
-static int mr_get_normalized_topic(const char* topic_in, char* topic) {
+int mr_get_normalized_topic(const char* topic_in, char* topic) {
     size_t tlen = strlen(topic_in);
     char topic2[tlen + 3];
 
@@ -46,7 +46,7 @@ static int mr_get_normalized_topic(const char* topic_in, char* topic) {
     return 0;
 }
 
-static int mr_get_subscribe_topic(const char* subtopic, char* topic, char* share) {
+int mr_get_subscribe_topic(const char* subtopic, char* topic, char* share) {
     size_t tlen_in = strlen(subtopic);
     char subtopic2[tlen_in + 1];
 

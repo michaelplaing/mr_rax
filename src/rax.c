@@ -196,6 +196,7 @@ raxNode *raxNewNode(size_t children, int datafield) {
     node->isnull = 0;
     node->iscompr = 0;
     node->size = children;
+    node->memo = 0;
     return node;
 }
 
@@ -1265,7 +1266,6 @@ void raxStart(raxIterator *it, rax *rt) {
     it->data = NULL;
     it->node_cb = NULL;
     raxStackInit(&it->stack);
-    raxStackInit(&it->nextchild_stack);
 }
 
 /* Append characters at the current key string of the iterator 'it'. This
@@ -1273,8 +1273,7 @@ void raxStart(raxIterator *it, rax *rt) {
  * the user. Returns 0 on out of memory, otherwise 1 is returned. */
 int raxIteratorAddChars(raxIterator *it, unsigned char *s, size_t len) {
     if (it->key_max < it->key_len+len) {
-        unsigned char *old = (it->key == it->key_static_string) ? NULL :
-                                                                  it->key;
+        unsigned char *old = (it->key == it->key_static_string) ? NULL : it->key;
         size_t new_max = (it->key_len+len)*2;
         it->key = rax_realloc(old,new_max);
         if (it->key == NULL) {
@@ -1959,8 +1958,7 @@ int raxIteratorNextChildStep(raxIterator* it) {
     raxNode* orig_node = it->node;
 
     while(1) { // ascend/descend repeatedly until the next child key is found
-        it->node = raxStackPop(&it->stack); // go up
-        uintptr_t nextchild_offset = (uintptr_t)raxStackPop(&it->nextchild_stack);
+        it->node = raxStackPop(&it->stack); // ascend
 
         if (it->node == it->stop_node) { // have we popped above the seeked key?
             it->flags |= RAX_ITER_EOF;
@@ -1974,12 +1972,13 @@ int raxIteratorNextChildStep(raxIterator* it) {
         raxIteratorDelChars(it, todel);
 
         while(!it->node->iscompr && it->node->size > 1) { // find the next child node; exit if no children
-            if (nextchild_offset != it->node->size) { // found a child subtree to explore
-                if (!raxIteratorAddChars(it, it->node->data + nextchild_offset, 1)) return 0; // add child node char to key_string
+            // node is not compressed ∴ size is 256 or less; memo is 8 bits & may overflow (unlikely but...)
+            if (it->node->memo != (it->node->size & 0xff)) { // found a child subtree to explore
+                if (!raxIteratorAddChars(it, it->node->data + it->node->memo, 1)) return 0;
+                raxNode** cp = raxNodeFirstChildPtr(it->node) + it->node->memo;
+                it->node->memo += 1; // increment offset to next child
                 if (!raxStackPush(&it->stack, it->node)) return 0;
-                if (!raxStackPush(&it->nextchild_stack, (void*)(nextchild_offset + 1))) return 0;
-                raxNode** cp = raxNodeFirstChildPtr(it->node) + nextchild_offset;
-                memcpy(&it->node, cp, sizeof(it->node)); // child node is now current
+                memcpy(&it->node, cp, sizeof(it->node)); // make child node current
 
                 while(1) {
                     if (it->node->iskey) {
@@ -1990,15 +1989,15 @@ int raxIteratorNextChildStep(raxIterator* it) {
                     int children = it->node->iscompr ? 1 : it->node->size;
 
                     if (children) {
+                        it->node->memo = 1; // offset to next child
                         if (!raxStackPush(&it->stack, it->node)) return 0;
-                        if (!raxStackPush(&it->nextchild_stack, (void*)1)) return 0;
                         cp = raxNodeFirstChildPtr(it->node);
 
                         if (
                             !raxIteratorAddChars(it, it->node->data, it->node->iscompr ? it->node->size : 1)
                         ) return 0;
 
-                        memcpy(&it->node, cp, sizeof(it->node));
+                        memcpy(&it->node, cp, sizeof(it->node)); // make child node current
                     }
                     else { // not a key and no children - should this happen?
                         break; // ignore and trigger ascent
@@ -2044,14 +2043,14 @@ int raxSeekChildren(raxIterator* it, unsigned char* key, size_t len) {
     it->node = NULL;
     if (!raxSeek(it, "=", key, len)) return 0;
     if (it->flags & RAX_ITER_EOF) return 1;
-    it->stop_node = raxStackPeek(&it->stack);
+    it->stop_node = raxStackPeek(&it->stack); // terminate on ascent above starting node
 
     while(1) { // find the 1st child key
         int children = it->node->iscompr ? 1 : it->node->size;
 
         if (children) { // descend trying 1st children
+            it->node->memo = 1; // offset to next child
             if (!raxStackPush(&it->stack, it->node)) return 0;
-            if (!raxStackPush(&it->nextchild_stack, (void*)1)) return 0;
             raxNode** cp = raxNodeFirstChildPtr(it->node);
 
             if (
