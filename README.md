@@ -4,7 +4,7 @@ The mr_rax public functions so far are:
 
 - mr_insert_subscription: Insert an MQTT subscription topic (with optional wildcards) and a Client ID
 
-- mr_get_clients: For a published topic return the dedup'd set of clients IDs from all matching subscriptions.
+- mr_get_clients: For a published topic return the dedup'd set of Client IDs from all matching subscriptions.
 
 Note: MQTT shared subscriptions are fully supported.
 
@@ -18,7 +18,7 @@ Some additions and modifications have also been made to Rax itself to support th
 
 - raxNextChild: Return the next immediate child key of the key sought above.
 
-And for easier visualization of binary data, e.g. client IDs:
+And for easier visualization of binary data, e.g. Client IDs:
 
 - raxShowHex
 
