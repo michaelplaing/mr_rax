@@ -4,7 +4,7 @@ The mr_rax public functions so far are:
 
 - mr_insert_subscription: Insert an MQTT subscription topic (with optional wildcards) and a Client ID
 
-- mr_get_clients: For a published topic return the dedup'd set of Client IDs from all matching subscriptions.
+- mr_get_clients: For a published topic return the dedup'd set of Client IDs from all matching subscriptions. raxSeekChildren (see below) will efficiently iterate through this set which is a Rax tree with depth 1.
 
 Note: MQTT shared subscriptions are fully supported.
 
@@ -14,7 +14,7 @@ This project is set up to use as one of the CMake subprojects in a comprehensive
 
 Some additions and modifications have also been made to Rax itself to support the following functions needed by the above. There is also some experimental code included to avoid repetitive scanning of node data for the next child node index, which may be particularly important for the anticipated wide spans of binary Client IDs.
 
-- raxSeekChildren: Seek a key in order to get its immediate child keys.
+- raxSeekChildren: Seek a key in order to get its immediate child keys. A key of NULL seeks the root.
 
 - raxNextChild: Return the next immediate child key of the key sought above.
 

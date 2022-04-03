@@ -2039,7 +2039,7 @@ int raxSeekChildren(raxIterator* it, unsigned char* key, size_t len) {
     if (key == NULL) {
         raxTryInsert(it->rt, (uint8_t*)"", 0, NULL, NULL); // make root a key
         // it->rt->head->iskey = true; // riskier but may work
-        raxSeek(it, "=", (uint8_t*)"", 0);
+        if (!raxSeek(it, "=", (uint8_t*)"", 0)) return 0;
     }
     else {
         if (!raxSeek(it, "=", key, len)) return 0;
