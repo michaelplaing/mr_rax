@@ -75,7 +75,11 @@ A hash wildcard can be the last token at any level, e.g. topic ``foo/#``; Client
 
 ``@/foo/#<0xef><0x0000000000000007>``
 
-And of course a client can any number of subscriptions and vice versa, e.g. topic ``foo/#``; Client ID ``1``:
+And of course a client can have any number of subscriptions and vice versa, e.g. topic ``foo/#``; Client ID ``1``:
+
+``@/foo/#<0xef><0x0000000000000001>``
+
+And subscribe to a ``$SYS`` topic as well, e.g. topic ``$SYS/foo/#``; Client ID ``1``:
 
 ``@/foo/#<0xef><0x0000000000000001>``
 
@@ -111,9 +115,10 @@ When ``@/foo/bar<0xef><0x0000000000000002>`` is also inserted, we get:
                                     ↑
 ```
 
-The additions to Rax include ``raxShowHex()``. When the 8 subscriptions above are applied to the TC tree they result in the following ASCII art of the Rax internal structures, illustrating prefix compression, node compression and adaptive node sizes:
+The additions to Rax include ``raxShowHex()``. When the 9 subscriptions above are applied to the TC tree they result in the following ASCII art of the Rax internal structures, illustrating prefix compression, node compression and adaptive node sizes:
 ```
-[@C]
+[$@]
+ `-($) "/$SYS"=0x1 -> "/foo"=0x1 -> "/#"=0x1 -> [0xfe]=0x1 -> "0x0000000000000001"=0x1 -> []
  `-(@) [/]=0x8 -> [+f]
                    `-(+) "/bar"=0x1 -> [0xfe]=0x1 -> "0x0000000000000006"=0x1 -> []
                    `-(f) "oo" -> [/]=0x7 -> [#b]
@@ -129,7 +134,7 @@ The additions to Rax include ``raxShowHex()``. When the 8 subscriptions above ar
                                                                                                           `-(.) []
                                                                                                           `-(.) []
 ```
-A full explanation of the notation above is in the Rax README and rax.h; a tricky part is that first character of a key is stored in the node pointing to the key, not in the key itself. Hence ``[@]`` is the empty TC root node containing the first and only character of the key node ``@`` to its right and so on.
+A full explanation of the notation above is in the Rax README and rax.h; a tricky part is that first character of a key is stored in the node pointing to the key, not in the key itself.
 
 Each key except for leaf Client IDs has an integer value associated with it which is the count of Client IDs in its subtree, e.g. the ``0x7`` associated with key node ``@``. This is currently useful in randomly picking a Client ID when matching a shared subscription and may in future help with dynamic search strategies. The Rax tree itself maintains total counts of all keys and nodes.
 
@@ -139,15 +144,18 @@ This subtree contains a subscriptions inversion for each client and will contain
 
 The client subtree is in the main Rax tree distinguished by a ``C`` as its first character and key. The keys then proceed hierarchically: ``C<Client ID>``, ``C<Client ID>"subs"``,  ``C<Client ID>"subs"<subscription topic>``.
 
-``raxShowHex()`` yields the following depiction of our 7 clients and their 8 subscriptions:
+``raxShowHex()`` yields the following depiction of our 7 clients and their 9 subscriptions:
 
 ```
-[@C]
+[$@C]
+ `-($) (see above)
  `-(@) (see above)
  `-(C) "0x00000000000000" -> [0x01020304050607]
-                              `-(.) "subs" -> "foo/" -> [#b]
-                                                         `-(#) []
-                                                         `-(b) "ar" -> []
+                              `-(.) "subs" -> [$f]
+                                               `-($) "SYS/foo/#" -> []
+                                               `-(f) "oo/" -> [#b]
+                                                               `-(#) []
+                                                               `-(b) "ar" -> []
                               `-(.) "subs" -> "foo/bar" -> []
                               `-(.) "subs" -> "foo/bar/" -> []
                               `-(.) "subs" -> "$share/baz/foo/bar" -> []

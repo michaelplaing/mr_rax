@@ -52,6 +52,7 @@ int topic_fun(void) {
         "$share/baz/foo/bar:4;5",
         "+/bar:6",
         "foo/#:7;1",
+        "$SYS/foo/#:1",
     };
 
     size_t numtopics = sizeof(subtopicclientv) / sizeof(subtopicclientv[0]);
