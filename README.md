@@ -14,7 +14,7 @@ This project is set up to use as one of the CMake subprojects in a comprehensive
 
 Some additions and modifications have also been made to Rax itself to support the following functions needed by the above. There is also some experimental code included to avoid repetitive scanning of node data for the next child node index, which may be particularly important for the anticipated wide spans of binary Client IDs.
 
-- raxSeekChildren: Seek a key in order to get its immediate child keys. A key of NULL seeks the root.
+- raxSeekChildren: Seek a key in order to get its immediate child keys. A key of NULL seeks the root which is useful for handling a rax tree of depth 1.
 
 - raxNextChild: Return the next immediate child key of the key sought above.
 
@@ -111,7 +111,7 @@ When ``@/foo/bar<0xef><0x0000000000000002>`` is also inserted, we get:
                                     ↑
 ```
 
-The additions to Rax include ``raxShowHex()``. When the 7 subscriptions above are applied to the TC tree they result in the following ASCII art of the Rax internal structures, illustrating prefix compression, node compression and adaptive node sizes:
+The additions to Rax include ``raxShowHex()``. When the 8 subscriptions above are applied to the TC tree they result in the following ASCII art of the Rax internal structures, illustrating prefix compression, node compression and adaptive node sizes:
 ```
 [@C]
  `-(@) [/]=0x8 -> [+f]
@@ -139,7 +139,7 @@ This subtree contains a subscriptions inversion for each client and will contain
 
 The client subtree is in the main Rax tree distinguished by a ``C`` as its first character and key. The keys then proceed hierarchically: ``C<Client ID>``, ``C<Client ID>"subs"``,  ``C<Client ID>"subs"<subscription topic>``.
 
-``raxShowHex()`` yields the following depiction of our 7 clients and their subscriptions:
+``raxShowHex()`` yields the following depiction of our 7 clients and their 8 subscriptions:
 
 ```
 [@C]
