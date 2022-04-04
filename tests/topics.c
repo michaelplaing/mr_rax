@@ -76,12 +76,15 @@ int topic_fun(void) {
         }
     }
 
-    raxShowHex(prax);
-
     char pubtopic[] = "sport/tennis/matches";
     // char pubtopic[] = "sport/tennis/matches/france/amateur/af1";
     // char pubtopic[] = "s";
     // char pubtopic[] = "/foo/";
+
+    mr_upsert_client_topic_alias(prax, 1, pubtopic, 1);
+
+    raxShowHex(prax);
+
     printf("get matching clients for '%s'\n", pubtopic);
 
     rax* crax = raxNew();

@@ -18,5 +18,6 @@ int mr_get_normalized_topic(const char* topic_in, char* topic);
 int mr_get_subscribe_topic(const char* subtopic, char* topic, char* share);
 int mr_insert_subscription(rax* prax, const char* subtopic, const uint64_t client);
 int mr_get_clients(rax* prax, rax* crax, const char* pubtopic);
+int mr_upsert_client_topic_alias(rax* prax, const uint64_t client, const char* pubtopic, const uintptr_t alias);
 
 #endif // MR_RAX_H

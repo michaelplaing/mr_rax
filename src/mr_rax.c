@@ -223,3 +223,38 @@ int mr_get_clients(rax* prax, rax* crax, const char* pubtopic) {
     mr_probe_subscriptions(prax, crax, topic2, level, tokenv, numtokens);
     return 0;
 }
+int mr_upsert_client_topic_alias(rax* prax, const uint64_t client, const char* pubtopic, const uintptr_t alias) {
+    size_t ptlen = strlen(pubtopic);
+    char topicbyalias[13]; // 1 + 8 + 3 + 1: "C"<Client ID>"tba"<alias>
+    char aliasbytopic[ptlen + 12]; // 1 + 8 + 3 + ptlen: "C"<Client ID>"abt"<pubtopic>
+
+    // get the client bytes in network order (big endian)
+    uint8_t clientv[8];
+    for (int i = 0; i < 8; i++) clientv[i] = client >> ((7 - i) * 8) & 0xff;
+
+    topicbyalias[0] = aliasbytopic[0] = 'C';
+    raxTryInsert(prax, (uint8_t*)topicbyalias, 1, NULL, NULL);
+    memcpy((void*)topicbyalias + 1, (void*)clientv, 8);
+    memcpy((void*)aliasbytopic + 1, (void*)clientv, 8);
+    raxTryInsert(prax, (uint8_t*)topicbyalias, 1 + 8, NULL, NULL);
+
+    memcpy((void*)topicbyalias + 1 + 8, (void*)"tba", 3);
+    raxTryInsert(prax, (uint8_t*)topicbyalias, 1 + 8 + 3, NULL, NULL);
+    memcpy((void*)aliasbytopic + 1 + 8, (void*)"abt", 3);
+    raxTryInsert(prax, (uint8_t*)aliasbytopic, 1 + 8 + 3, NULL, NULL);
+
+    memcpy((void*)topicbyalias + 1 + 8 + 3, &alias, 1);
+    char* pubtopic2 = strdup(pubtopic); // free on deletion
+    raxTryInsert(prax, (uint8_t*)topicbyalias, 1 + 8 + 3 + 1, pubtopic2, NULL);
+    memcpy((void*)aliasbytopic + 1 + 8 + 3, (void*)pubtopic, ptlen);
+    raxTryInsert(prax, (uint8_t*)aliasbytopic, 1 + 8 + 3 + ptlen, (void*)alias, NULL);
+
+    return 0;
+}
+
+int mr_get_client_alias_by_topic(rax* prax, const uint64_t client, const char* pubtopic, uint8_t* palias) {
+    size_t ptlen = strlen(pubtopic);
+    char aliasbytopic[ptlen + 17]; // 1 + 8 + 7 + ptlen + 1: "C"<Client ID>"aliasbytopic"<pubtopic><alias>
+
+    return 0;
+}
