@@ -19,7 +19,7 @@ int mr_insert_subscription(rax* tcrax, rax* crax, const char* subtopic, const ui
 int mr_get_subscribed_clients(rax* tcrax, rax* srax, const char* pubtopic);
 
 int mr_upsert_client_topic_alias(
-    rax* crax, const uint64_t client, const char* pubtopic, const uintptr_t alias, const bool incoming
+    rax* crax, const uint64_t client, const char* pubtopic, const uintptr_t alias, const bool isincoming
 );
 
 #endif // MR_RAX_H

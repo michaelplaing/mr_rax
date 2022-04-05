@@ -262,6 +262,7 @@ int mr_upsert_client_topic_alias(
         size_t ptlen4 = strlen(pubtopic4);
         memcpy(aliasbytopic + 8 + 4, pubtopic4, ptlen4);
         raxRemove(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen4, NULL); // delete previous inversion
+        rax_free(pubtopic4);
         raxInsert(crax, (uint8_t*)topicbyalias, 8 + 4 + 1, pubtopic2, NULL);
     }
 

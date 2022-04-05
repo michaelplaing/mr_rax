@@ -87,7 +87,9 @@ int topic_fun(void) {
 
     // mr_upsert_client_topic_alias(crax, 1, pubtopic, 1);
     mr_upsert_client_topic_alias(crax, 1, pubtopic2, 8, true);
-    mr_upsert_client_topic_alias(crax, 1, pubtopic3, 8, false);
+    // mr_upsert_client_topic_alias(crax, 1, pubtopic3, 8, false);
+    // mr_upsert_client_topic_alias(crax, 1, pubtopic3, 8, true);
+    mr_upsert_client_topic_alias(crax, 1, pubtopic2, 9, true);
 
     raxShowHex(tcrax);
     raxShowHex(crax);
