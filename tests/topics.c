@@ -87,9 +87,15 @@ int topic_fun(void) {
 
     // mr_upsert_client_topic_alias(crax, 1, pubtopic, 1);
     mr_upsert_client_topic_alias(crax, 1, pubtopic2, 8, true);
+    uint8_t alias;
+    int rc = mr_get_alias_by_topic(crax, 1, true, pubtopic2, &alias);
+    printf("mr_get_alias_by_topic:: rc: %d; alias: %u\n", rc, alias);
+    char* aliastopic;
+    rc = mr_get_topic_by_alias(crax, 1, true, 8, &aliastopic);
+    printf("mr_get_topic_by_alias:: rc: %d; aliastopic: %s\n", rc, aliastopic);
     // mr_upsert_client_topic_alias(crax, 1, pubtopic3, 8, false);
     // mr_upsert_client_topic_alias(crax, 1, pubtopic3, 8, true);
-    mr_upsert_client_topic_alias(crax, 1, pubtopic2, 9, true);
+    // mr_upsert_client_topic_alias(crax, 1, pubtopic2, 9, true);
 
     raxShowHex(tcrax);
     raxShowHex(crax);
