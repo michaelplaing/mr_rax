@@ -2,9 +2,9 @@
 
 The mr_rax public functions so far are:
 
-- mr_insert_subscription: Insert an MQTT subscription topic (with optional wildcards) and a Client ID
+- ``mr_insert_subscription()``: Insert an MQTT subscription topic (with optional wildcards) and a Client ID
 
-- mr_get_clients: For a published topic return the dedup'd set of Client IDs from all matching subscriptions. raxSeekChildren (see below) will efficiently iterate through this set which is a Rax tree with depth 1.
+- ``mr_get_topic_clients()``: For a published topic return the dedup'd set of Client IDs from all matching subscriptions. ``raxSeekChildren()`` (see below) will efficiently iterate through this set which is a Rax tree with depth 1.
 
 Note: MQTT shared subscriptions are fully supported.
 
@@ -14,13 +14,13 @@ This project is set up to use as one of the CMake subprojects in a comprehensive
 
 Some additions and modifications have also been made to Rax itself to support the following functions needed by the above. There is also some experimental code included to avoid repetitive scanning of node data for the next child node index, which may be particularly important for the anticipated wide spans of binary Client IDs.
 
-- raxSeekChildren: Seek a key in order to get its immediate child keys. A key of NULL seeks the root which is useful for handling a rax tree of depth 1.
+- ``raxSeekChildren()``: Seek a key in order to get its immediate child keys. A key of NULL seeks the root which is useful for handling a Rax tree of depth 1.
 
-- raxNextChild: Return the next immediate child key of the key sought above.
+- ``raxNextChild()``: Return the next immediate child key of the key sought above.
 
 And for easier visualization of binary data, e.g. Client IDs:
 
-- raxShowHex
+- ``raxShowHex()``
 
 ## The unified topic/client (TC) tree
 
@@ -87,7 +87,7 @@ And subscribe to a ``$SYS`` topic as well, e.g. topic ``$SYS/foo/#``; Client ID 
 
 Rax is a binary character based adaptive radix prefix tree. This means that common prefixes are combined and node sizes vary depending on prefix compression, node compression and the number of children. A key is a sequence of characters that can be "inserted" and/or "found". Optionally a key can have associated data. The keys are maintained in lexicographic order within the tree's hierarchy.
 
-There is much more information in the Rax README and rax.h.
+There is much more information in the Rax README and ``rax.h``.
 
 ### Overlaying the TC tree on Rax
 
@@ -134,7 +134,7 @@ The additions to Rax include ``raxShowHex()``. When the 9 subscriptions above ar
                                                                                                           `-(.) []
                                                                                                           `-(.) []
 ```
-A full explanation of the notation above is in the Rax README and rax.h; a tricky part is that the first character of a key is stored in the node pointing to the key, not in the key itself.
+A full explanation of the notation above is in the Rax README and ``rax.h``; a tricky part is that the first character of a key is stored in the node pointing to the key, not in the key itself.
 
 Each key except for leaf Client IDs has an integer value associated with it which is the count of Client IDs in its subtree, e.g. the ``0x8`` associated with key ``@``. This is currently useful in randomly picking a Client ID when matching a shared subscription and in pruning the tree as subscriptions are deleted. The Rax tree itself maintains total counts of all keys and nodes.
 

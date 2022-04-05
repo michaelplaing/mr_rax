@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "mr_rax/mr_rax.h"
+#include "mr_rax_internal.h"
 
 int topic_fun(void) {
     rax* tcrax = raxNew();

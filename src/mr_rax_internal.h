@@ -3,6 +3,9 @@
 
 #include "mr_rax/rax.h"
 
+int mr_get_normalized_topic(const char* pubtopic, char* topic);
+int mr_get_subscribe_topic(const char* subtopic, char* topic, char* share);
+
 static int mr_tokenize_topic(char* topic, char** tokenv);
 static int mr_upsert_topic(rax* prax, char* topic, size_t len);
 static int mr_upsert_parent_topic_tree(rax* prax, const char* topic);
