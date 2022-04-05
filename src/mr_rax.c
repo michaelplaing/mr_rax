@@ -8,6 +8,7 @@
 
 #include "mr_rax/mr_rax.h"
 #include "mr_rax/rax.h"
+#include "mr_rax/rax_malloc.h"
 #include "mr_rax_internal.h"
 
 static int mr_tokenize_topic(char* topic, char** tokenv) {
@@ -227,27 +228,41 @@ int mr_upsert_client_topic_alias(rax* prax, const uint64_t client, const char* p
     size_t ptlen = strlen(pubtopic);
     char topicbyalias[13]; // 1 + 8 + 3 + 1: "C"<Client ID>"tba"<alias>
     char aliasbytopic[ptlen + 12]; // 1 + 8 + 3 + ptlen: "C"<Client ID>"abt"<pubtopic>
-
-    // get the client bytes in network order (big endian)
     uint8_t clientv[8];
     for (int i = 0; i < 8; i++) clientv[i] = client >> ((7 - i) * 8) & 0xff;
 
     topicbyalias[0] = aliasbytopic[0] = 'C';
     raxTryInsert(prax, (uint8_t*)topicbyalias, 1, NULL, NULL);
-    memcpy((void*)topicbyalias + 1, (void*)clientv, 8);
-    memcpy((void*)aliasbytopic + 1, (void*)clientv, 8);
+    memcpy(topicbyalias + 1, clientv, 8);
+    memcpy(aliasbytopic + 1, clientv, 8);
     raxTryInsert(prax, (uint8_t*)topicbyalias, 1 + 8, NULL, NULL);
 
-    memcpy((void*)topicbyalias + 1 + 8, (void*)"tba", 3);
+    memcpy(topicbyalias + 1 + 8, "tba", 3);
     raxTryInsert(prax, (uint8_t*)topicbyalias, 1 + 8 + 3, NULL, NULL);
-    memcpy((void*)aliasbytopic + 1 + 8, (void*)"abt", 3);
+    memcpy(aliasbytopic + 1 + 8, "abt", 3);
     raxTryInsert(prax, (uint8_t*)aliasbytopic, 1 + 8 + 3, NULL, NULL);
 
-    memcpy((void*)topicbyalias + 1 + 8 + 3, &alias, 1);
+    memcpy(aliasbytopic + 1 + 8 + 3, pubtopic, ptlen);
+
+    uintptr_t old_alias;
+    if (!raxTryInsert(prax, (uint8_t*)aliasbytopic, 1 + 8 + 3 + ptlen, (void*)alias, (void**)&old_alias)) {
+        char* pubtopic3;
+        memcpy(topicbyalias + 1 + 8 + 3, &old_alias, 1);
+        raxRemove(prax, (uint8_t*)topicbyalias, 1 + 8 + 3 + 1, (void**)&pubtopic3); // delete previous inversion
+        rax_free(pubtopic3);
+        raxInsert(prax, (uint8_t*)aliasbytopic, 1 + 8 + 3 + ptlen, (void*)alias, NULL); // overwrite
+    }
+
+    memcpy(topicbyalias + 1 + 8 + 3, &alias, 1);
     char* pubtopic2 = strdup(pubtopic); // free on deletion
-    raxTryInsert(prax, (uint8_t*)topicbyalias, 1 + 8 + 3 + 1, pubtopic2, NULL);
-    memcpy((void*)aliasbytopic + 1 + 8 + 3, (void*)pubtopic, ptlen);
-    raxTryInsert(prax, (uint8_t*)aliasbytopic, 1 + 8 + 3 + ptlen, (void*)alias, NULL);
+
+    char* pubtopic4;
+    if (!raxTryInsert(prax, (uint8_t*)topicbyalias, 1 + 8 + 3 + 1, pubtopic2, (void**)&pubtopic4)) {
+        size_t ptlen4 = strlen(pubtopic4);
+        memcpy(aliasbytopic + 1 + 8 + 3, pubtopic4, ptlen4);
+        raxRemove(prax, (uint8_t*)aliasbytopic, 1 + 8 + 3 + ptlen4, NULL); // delete previous inversion
+        raxInsert(prax, (uint8_t*)topicbyalias, 1 + 8 + 3 + 1, pubtopic2, NULL);
+    }
 
     return 0;
 }
