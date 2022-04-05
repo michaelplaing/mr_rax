@@ -2,7 +2,7 @@
 
 The mr_rax public functions so far are:
 
-- ``mr_insert_subscription()``: Insert an MQTT subscription topic (with optional wildcards) and a Client ID
+- ``mr_insert_subscription()``: Insert an MQTT subscription topic (with optional wildcards) and a Client ID.
 
 - ``mr_get_topic_clients()``: For a published topic return the dedup'd set of Client IDs from all matching subscriptions. ``raxSeekChildren()`` (see below) will efficiently iterate through this set which is a Rax tree with depth 1.
 
@@ -33,7 +33,7 @@ The internal TC tree is composed of:
     - ``@`` for the normal hierarchy
     - ``$`` for topics starting with '\$'
 - For shared subscriptions, the topic is placed in the hierarchy above and the rest treated as described below.
-- the topic tokens (the 0-length token is represented by ``0x1f`` which is invalid in MQTT)
+- The topic tokens (the 0-length token is represented by ``0x1f`` which is invalid in MQTT)
 - ``/`` as the separator between the above tokens
 
 Then for normal subscription clients:
@@ -81,7 +81,7 @@ And of course a client can have any number of subscriptions and vice versa, e.g.
 
 And subscribe to a ``$SYS`` topic as well, e.g. topic ``$SYS/foo/#``; Client ID ``1``:
 
-``@/foo/#<0xef><0x0000000000000001>``
+``$/$SYS/foo/#<0xef><0x0000000000000001>``
 
 ### The Rax tree implementation
 
