@@ -67,14 +67,14 @@ int mr_get_subscribe_topic(const char* subtopic, char* topic, char* share) {
     return 0;
 }
 
-static int mr_upsert_topic(rax* prax, char* topic, size_t len) {
+static int mr_upsert_topic(rax* tcrax, char* topic, size_t len) {
     uintptr_t client_count; // increment
-    int try = raxTryInsert(prax, (uint8_t*)topic, len, (void*)1, (void**)&client_count);
-    if (!try) raxInsert(prax, (uint8_t*)topic, len, (void*)(client_count + 1), NULL);
+    int try = raxTryInsert(tcrax, (uint8_t*)topic, len, (void*)1, (void**)&client_count);
+    if (!try) raxInsert(tcrax, (uint8_t*)topic, len, (void*)(client_count + 1), NULL);
     return 0;
 }
 
-static int mr_upsert_parent_topic_tree(rax* prax, const char* topic) {
+static int mr_upsert_parent_topic_tree(rax* tcrax, const char* topic) {
     size_t tlen = strlen(topic);
     char* tokenv[MAX_TOKENS];
     char topic2[tlen + 1];
@@ -85,14 +85,14 @@ static int mr_upsert_parent_topic_tree(rax* prax, const char* topic) {
 
     for (int i = 0; i < (numtokens - 1); i++) {
         strlcat(topic2, tokenv[i], tlen + 1);
-        mr_upsert_topic(prax, topic2, strlen(topic2));
+        mr_upsert_topic(tcrax, topic2, strlen(topic2));
         strlcat(topic2, "/", tlen + 1);
     }
 
     return 0;
 }
 
-int mr_insert_subscription(rax* prax, const char* subtopic, const uint64_t client) {
+int mr_insert_subscription(rax* tcrax, rax* crax, const char* subtopic, const uint64_t client) {
     size_t stlen = strlen(subtopic);
     char topic[stlen + 3];
     char share[stlen + 1];
@@ -102,9 +102,9 @@ int mr_insert_subscription(rax* prax, const char* subtopic, const uint64_t clien
     mr_get_subscribe_topic(subtopic, topic, share);
 
     // insert/update topic & parent tree incrementing client counts
-    mr_upsert_parent_topic_tree(prax, topic);
+    mr_upsert_parent_topic_tree(tcrax, topic);
     size_t tlen = strlen(topic);
-    mr_upsert_topic(prax, topic, tlen);
+    mr_upsert_topic(tcrax, topic, tlen);
 
     // get the client bytes in network order (big endian)
     uint8_t clientv[8];
@@ -118,40 +118,38 @@ int mr_insert_subscription(rax* prax, const char* subtopic, const uint64_t clien
 
     if (slen) { // shared subscription sub-hierarchy
         memcpy((void*)topic2 + tlen, &shared_mark, 1);
-        mr_upsert_topic(prax, topic2, tlen + 1);
+        mr_upsert_topic(tcrax, topic2, tlen + 1);
         memcpy((void*)topic2 + tlen + 1, (void*)share, slen);
     }
     else { // regular subscription sub-hierarchy
         memcpy((void*)topic2 + tlen, &client_mark, 1);
     }
 
-    mr_upsert_topic(prax, topic2, tlen2);
+    mr_upsert_topic(tcrax, topic2, tlen2);
     memcpy((void*)topic2 + tlen2, (void*)clientv, 8);
-    raxInsert(prax, (uint8_t*)topic2, tlen2 + 8, NULL, NULL); // insert the client
+    raxInsert(tcrax, (uint8_t*)topic2, tlen2 + 8, NULL, NULL); // insert the client
 
-    char topic3[1 + 8 + 4 + stlen];
-    topic3[0] = 'C';
-    raxTryInsert(prax, (uint8_t*)topic3, 1, NULL, NULL);
-    memcpy((void*)topic3 + 1, (void*)clientv, 8);
-    raxTryInsert(prax, (uint8_t*)topic3, 1 + 8, NULL, NULL);
-    memcpy((void*)topic3 + 1 + 8, (void*)"subs", 4);
-    raxTryInsert(prax, (uint8_t*)topic3, 1 + 8 + 4, NULL, NULL);
-    memcpy((void*)topic3 + 1 + 8 + 4, (void*)subtopic, stlen);
-    raxTryInsert(prax, (uint8_t*)topic3, 1 + 8 + 4 + stlen, NULL, NULL);
+    char topic3[8 + 4 + stlen];
+    memcpy(topic3, clientv, 8);
+    raxTryInsert(crax, (uint8_t*)topic3, 8, NULL, NULL);
+    memcpy(topic3 + 8, "subs", 4);
+    raxTryInsert(crax, (uint8_t*)topic3, 8 + 4, NULL, NULL);
+    memcpy(topic3 + 8 + 4, subtopic, stlen);
+    raxTryInsert(crax, (uint8_t*)topic3, 8 + 4 + stlen, NULL, NULL);
 
     return 0;
 }
 
-static int mr_get_topic_clients(rax* prax, rax* crax, uint8_t* key, size_t key_len) {
+static int mr_get_topic_clients(rax* tcrax, rax* srax, uint8_t* key, size_t key_len) {
     raxIterator iter;
-    raxStart(&iter, prax);
+    raxStart(&iter, tcrax);
     raxIterator iter2;
-    raxStart(&iter2, prax);
+    raxStart(&iter2, tcrax);
 
     // get regular subs
     key[key_len] = client_mark;
     raxSeekChildren(&iter, key, key_len + 1);
-    while(raxNextChild(&iter)) raxTryInsert(crax, iter.key + iter.key_len - 8, 8, NULL, NULL);
+    while(raxNextChild(&iter)) raxTryInsert(srax, iter.key + iter.key_len - 8, 8, NULL, NULL);
 
     // get shared subs
     key[key_len] = shared_mark;
@@ -161,7 +159,7 @@ static int mr_get_topic_clients(rax* prax, rax* crax, uint8_t* key, size_t key_l
         int choice = arc4random() % (uintptr_t)(iter.data); // iter.data is the client count
         raxSeekChildren(&iter2, iter.key, iter.key_len);
         for (int i = 0; raxNextChild(&iter2) && i < choice; i++);
-        raxTryInsert(crax, iter2.key + iter2.key_len - 8, 8, NULL, NULL);
+        raxTryInsert(srax, iter2.key + iter2.key_len - 8, 8, NULL, NULL);
     }
 
     raxStop(&iter2);
@@ -169,7 +167,7 @@ static int mr_get_topic_clients(rax* prax, rax* crax, uint8_t* key, size_t key_l
     return 0;
 }
 
-static int mr_probe_subscriptions(rax* prax, rax* crax, char* topic, int level, char** tokenv, size_t numtokens) {
+static int mr_probe_subscriptions(rax* tcrax, rax* srax, char* topic, int level, char** tokenv, size_t numtokens) {
     char topic2[MAX_TOPIC_LEN];
     char* token = tokenv[level];
 
@@ -177,32 +175,32 @@ static int mr_probe_subscriptions(rax* prax, rax* crax, char* topic, int level, 
         strlcat(topic, token, MAX_TOPIC_LEN);
 
         snprintf(topic2, MAX_TOPIC_LEN, "%s/#", topic);
-        if (raxFind(prax, (uint8_t*)topic2, strlen(topic2)) != raxNotFound) {
-            mr_get_topic_clients(prax, crax, (uint8_t*)topic2, strlen(topic2));
+        if (raxFind(tcrax, (uint8_t*)topic2, strlen(topic2)) != raxNotFound) {
+            mr_get_topic_clients(tcrax, srax, (uint8_t*)topic2, strlen(topic2));
         }
 
         if (level == (numtokens - 1)) break; // only '#' is valid at this level
 
         snprintf(topic2, MAX_TOPIC_LEN, "%s/+", topic);
-        if (raxFind(prax, (uint8_t*)topic2, strlen(topic2)) != raxNotFound) {
+        if (raxFind(tcrax, (uint8_t*)topic2, strlen(topic2)) != raxNotFound) {
             if (level == (numtokens - 2)) {
-                mr_get_topic_clients(prax, crax, (uint8_t*)topic2, strlen(topic2));
+                mr_get_topic_clients(tcrax, srax, (uint8_t*)topic2, strlen(topic2));
             }
             else {
                 char *token2v[numtokens];
                 for (int i = 0; i < numtokens; i++) token2v[i] = tokenv[i];
                 token2v[level + 1] = "+";
                 topic2[strlen(topic2) - 1] = '\0'; // trim the '+'
-                mr_probe_subscriptions(prax, crax, topic2, level + 1, token2v, numtokens);
+                mr_probe_subscriptions(tcrax, srax, topic2, level + 1, token2v, numtokens);
             }
         }
 
         token = tokenv[level + 1];
         snprintf(topic2, MAX_TOPIC_LEN, "%s/%s", topic, token);
         if (
-            raxFind(prax, (uint8_t*)topic2, strlen(topic2)) != raxNotFound &&
+            raxFind(tcrax, (uint8_t*)topic2, strlen(topic2)) != raxNotFound &&
             level == (numtokens - 2)
-        )  mr_get_topic_clients(prax, crax, (uint8_t*)topic2, strlen(topic2));
+        )  mr_get_topic_clients(tcrax, srax, (uint8_t*)topic2, strlen(topic2));
 
         strlcat(topic, "/", MAX_TOPIC_LEN);
         level++;
@@ -211,7 +209,7 @@ static int mr_probe_subscriptions(rax* prax, rax* crax, char* topic, int level, 
     return 0;
 }
 
-int mr_get_clients(rax* prax, rax* crax, const char* pubtopic) {
+int mr_get_subscribed_clients(rax* tcrax, rax* srax, const char* pubtopic) {
     char* tokenv[MAX_TOKENS];
     char topic[MAX_TOPIC_LEN];
     char topic2[MAX_TOPIC_LEN];
@@ -221,53 +219,53 @@ int mr_get_clients(rax* prax, rax* crax, const char* pubtopic) {
     size_t numtokens = mr_tokenize_topic(topic3, tokenv); // modifies topic3 and points into it from tokenv
     topic2[0] = '\0';
     int level = 0;
-    mr_probe_subscriptions(prax, crax, topic2, level, tokenv, numtokens);
+    mr_probe_subscriptions(tcrax, srax, topic2, level, tokenv, numtokens);
     return 0;
 }
-int mr_upsert_client_topic_alias(rax* prax, const uint64_t client, const char* pubtopic, const uintptr_t alias) {
+int mr_upsert_client_topic_alias(rax* tcrax, const uint64_t client, const char* pubtopic, const uintptr_t alias) {
     size_t ptlen = strlen(pubtopic);
-    char topicbyalias[13]; // 1 + 8 + 3 + 1: "C"<Client ID>"tba"<alias>
-    char aliasbytopic[ptlen + 12]; // 1 + 8 + 3 + ptlen: "C"<Client ID>"abt"<pubtopic>
+    char topicbyalias[12]; // 8 + 3 + 1: <Client ID>"tba"<alias>
+    char aliasbytopic[ptlen + 11]; // 8 + 3 + ptlen: <Client ID>"abt"<pubtopic>
     uint8_t clientv[8];
     for (int i = 0; i < 8; i++) clientv[i] = client >> ((7 - i) * 8) & 0xff;
 
-    topicbyalias[0] = aliasbytopic[0] = 'C';
-    raxTryInsert(prax, (uint8_t*)topicbyalias, 1, NULL, NULL);
-    memcpy(topicbyalias + 1, clientv, 8);
-    memcpy(aliasbytopic + 1, clientv, 8);
-    raxTryInsert(prax, (uint8_t*)topicbyalias, 1 + 8, NULL, NULL);
+    // topicbyalias[0] = aliasbytopic[0] = 'C';
+    // raxTryInsert(tcrax, (uint8_t*)topicbyalias, 1, NULL, NULL);
+    memcpy(topicbyalias, clientv, 8);
+    memcpy(aliasbytopic, clientv, 8);
+    raxTryInsert(tcrax, (uint8_t*)topicbyalias, 8, NULL, NULL);
 
-    memcpy(topicbyalias + 1 + 8, "tba", 3);
-    raxTryInsert(prax, (uint8_t*)topicbyalias, 1 + 8 + 3, NULL, NULL);
-    memcpy(aliasbytopic + 1 + 8, "abt", 3);
-    raxTryInsert(prax, (uint8_t*)aliasbytopic, 1 + 8 + 3, NULL, NULL);
+    memcpy(topicbyalias + 8, "tba", 3);
+    raxTryInsert(tcrax, (uint8_t*)topicbyalias, 8 + 3, NULL, NULL);
+    memcpy(aliasbytopic + 8, "abt", 3);
+    raxTryInsert(tcrax, (uint8_t*)aliasbytopic, 8 + 3, NULL, NULL);
 
-    memcpy(aliasbytopic + 1 + 8 + 3, pubtopic, ptlen);
+    memcpy(aliasbytopic + 8 + 3, pubtopic, ptlen);
 
     uintptr_t old_alias;
-    if (!raxTryInsert(prax, (uint8_t*)aliasbytopic, 1 + 8 + 3 + ptlen, (void*)alias, (void**)&old_alias)) {
+    if (!raxTryInsert(tcrax, (uint8_t*)aliasbytopic, 8 + 3 + ptlen, (void*)alias, (void**)&old_alias)) {
         char* pubtopic3;
-        memcpy(topicbyalias + 1 + 8 + 3, &old_alias, 1);
-        raxRemove(prax, (uint8_t*)topicbyalias, 1 + 8 + 3 + 1, (void**)&pubtopic3); // delete previous inversion
+        memcpy(topicbyalias + 8 + 3, &old_alias, 1);
+        raxRemove(tcrax, (uint8_t*)topicbyalias, 8 + 3 + 1, (void**)&pubtopic3); // delete previous inversion
         rax_free(pubtopic3);
-        raxInsert(prax, (uint8_t*)aliasbytopic, 1 + 8 + 3 + ptlen, (void*)alias, NULL); // overwrite
+        raxInsert(tcrax, (uint8_t*)aliasbytopic, 8 + 3 + ptlen, (void*)alias, NULL); // overwrite
     }
 
-    memcpy(topicbyalias + 1 + 8 + 3, &alias, 1);
+    memcpy(topicbyalias + 8 + 3, &alias, 1);
     char* pubtopic2 = strdup(pubtopic); // free on deletion
 
     char* pubtopic4;
-    if (!raxTryInsert(prax, (uint8_t*)topicbyalias, 1 + 8 + 3 + 1, pubtopic2, (void**)&pubtopic4)) {
+    if (!raxTryInsert(tcrax, (uint8_t*)topicbyalias, 8 + 3 + 1, pubtopic2, (void**)&pubtopic4)) {
         size_t ptlen4 = strlen(pubtopic4);
-        memcpy(aliasbytopic + 1 + 8 + 3, pubtopic4, ptlen4);
-        raxRemove(prax, (uint8_t*)aliasbytopic, 1 + 8 + 3 + ptlen4, NULL); // delete previous inversion
-        raxInsert(prax, (uint8_t*)topicbyalias, 1 + 8 + 3 + 1, pubtopic2, NULL);
+        memcpy(aliasbytopic + 8 + 3, pubtopic4, ptlen4);
+        raxRemove(tcrax, (uint8_t*)aliasbytopic, 8 + 3 + ptlen4, NULL); // delete previous inversion
+        raxInsert(tcrax, (uint8_t*)topicbyalias, 8 + 3 + 1, pubtopic2, NULL);
     }
 
     return 0;
 }
 
-int mr_get_client_alias_by_topic(rax* prax, const uint64_t client, const char* pubtopic, uint8_t* palias) {
+int mr_get_client_alias_by_topic(rax* tcrax, const uint64_t client, const char* pubtopic, uint8_t* palias) {
     size_t ptlen = strlen(pubtopic);
     char aliasbytopic[ptlen + 17]; // 1 + 8 + 7 + ptlen + 1: "C"<Client ID>"aliasbytopic"<pubtopic><alias>
 

@@ -138,28 +138,28 @@ A full explanation of the notation above is in the Rax README and rax.h; a trick
 
 Each key except for leaf Client IDs has an integer value associated with it which is the count of Client IDs in its subtree, e.g. the ``0x8`` associated with key node ``@``. This is currently useful in randomly picking a Client ID when matching a shared subscription and may in future help with dynamic search strategies. The Rax tree itself maintains total counts of all keys and nodes.
 
-### The Client subtree
+### The Client tree
 
-This subtree contains a subscriptions inversion for each client and will contain other client-based information. The inversion is maintained in synchronization with subscriptions and assists in deleting subscriptions by Client ID.
+This tree contains a subscriptions inversion for each client, topic aliases for clients, and will contain other client-based information.
 
-The client subtree is in the main Rax tree distinguished by a ``C`` as its first character and key. The keys then proceed hierarchically: ``C<Client ID>``, ``C<Client ID>"subs"``,  ``C<Client ID>"subs"<subscription topic>``.
+Topic aliases are in 2 synchronized subtrees: ``abt`` and ``tba``, providing alias-by-topic and topic-by-alias respectively. The topic alias leaf values are used to store the alias and the topic pointer – this usage simplifies the overwriting of aliases as allowed by MQTT.
 
-``raxShowHex()`` yields the following depiction of our 7 clients and their 9 subscriptions:
+Adding topic alias ``8`` for Client ID ``1`` topic ``foo/bar`` and running ``raxShowHex()`` yields the following depiction of our 7 clients, their 9 subscriptions and the alias in the client tree (the value ``0x102da8088`` is the pointer to ``foo/bar``):
 
 ```
-[$@C]
- `-($) (see above)
- `-(@) (see above)
- `-(C) "0x00000000000000" -> [0x01020304050607]
-                              `-(.) "subs" -> [$f]
-                                               `-($) "SYS/foo/#" -> []
-                                               `-(f) "oo/" -> [#b]
-                                                               `-(#) []
-                                                               `-(b) "ar" -> []
-                              `-(.) "subs" -> "foo/bar" -> []
-                              `-(.) "subs" -> "foo/bar/" -> []
-                              `-(.) "subs" -> "$share/baz/foo/bar" -> []
-                              `-(.) "subs" -> "$share/baz/foo/bar" -> []
-                              `-(.) "subs" -> "+/bar" -> []
-                              `-(.) "subs" -> "foo/#" -> []
+"0x00000000000000" -> [0x01020304050607]
+        `-(.) [ast]
+               `-(a) "bt" -> "foo/bar" -> []=0x8
+               `-(s) "ubs" -> [$f]
+                               `-($) "SYS/foo/#" -> []
+                               `-(f) "oo/" -> [#b]
+                                               `-(#) []
+                                               `-(b) "ar" -> []
+               `-(t) "ba" -> [0x08] -> []=0x102da8088
+        `-(.) "subs" -> "foo/bar" -> []
+        `-(.) "subs" -> "foo/bar/" -> []
+        `-(.) "subs" -> "$share/baz/foo/bar" -> []
+        `-(.) "subs" -> "$share/baz/foo/bar" -> []
+        `-(.) "subs" -> "+/bar" -> []
+        `-(.) "subs" -> "foo/#" -> []
 ```

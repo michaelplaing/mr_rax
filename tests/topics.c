@@ -8,7 +8,8 @@
 #include "mr_rax/mr_rax.h"
 
 int topic_fun(void) {
-    rax* prax = raxNew();
+    rax* tcrax = raxNew();
+    rax* crax = raxNew();
 
     char* subtopicclientv[] = {
         // "$share/bom/bip/bop:21",
@@ -72,7 +73,7 @@ int topic_fun(void) {
 
         while ((clientstr = strsep(&unparsed_clients, ";")) != NULL) {
             uint64_t client = strtoull(clientstr, NULL, 0);
-            mr_insert_subscription(prax, subtopic, client);
+            mr_insert_subscription(tcrax, crax, subtopic, client);
         }
     }
 
@@ -81,48 +82,49 @@ int topic_fun(void) {
     // char pubtopic[] = "s";
     // char pubtopic[] = "/foo/";
 
-    mr_upsert_client_topic_alias(prax, 1, pubtopic, 1);
-    mr_upsert_client_topic_alias(prax, 1, pubtopic2, 2);
+    // mr_upsert_client_topic_alias(crax, 1, pubtopic, 1);
+    mr_upsert_client_topic_alias(crax, 1, pubtopic2, 8);
 
-    raxShowHex(prax);
+    raxShowHex(tcrax);
+    raxShowHex(crax);
 
     printf("get matching clients for '%s'\n", pubtopic);
 
-    rax* crax = raxNew();
-    mr_get_clients(prax, crax, pubtopic);
-    raxIterator citer;
-    raxStart(&citer, crax);
+    rax* srax = raxNew();
+    mr_get_subscribed_clients(tcrax, srax, pubtopic);
+    raxIterator siter;
+    raxStart(&siter, srax);
 
-    raxSeekChildren(&citer, NULL, 0);
+    raxSeekChildren(&siter, NULL, 0);
 
-    while(raxNextChild(&citer)) {
+    while(raxNextChild(&siter)) {
         uint64_t client = 0;
-        for (int i = 0; i < 8; i++) client += citer.key[i] << ((8 - i - 1) * 8);
+        for (int i = 0; i < 8; i++) client += siter.key[i] << ((8 - i - 1) * 8);
         printf(" %llu", client);
     }
 
     puts("");
 
-    // raxShowHex(crax);
+    // raxShowHex(srax);
 
-    raxStop(&citer);
-    raxFree(crax);
+    raxStop(&siter);
+    raxFree(srax);
 
     char topic[MAX_TOPIC_LEN];
     mr_get_normalized_topic(pubtopic, topic);
     printf("raxSeekChildren for '%s'\n", topic);
-    // printf("raxFind %s:: value: %lu\n", topic, (uintptr_t)raxFind(prax, (uint8_t*)topic, strlen(topic)));
-    raxIterator piter;
-    raxStart(&piter, prax);
-    raxSeekChildren(&piter, (uint8_t*)topic, strlen(topic));
+    // printf("raxFind %s:: value: %lu\n", topic, (uintptr_t)raxFind(tcrax, (uint8_t*)topic, strlen(topic)));
+    raxIterator tciter;
+    raxStart(&tciter, tcrax);
+    raxSeekChildren(&tciter, (uint8_t*)topic, strlen(topic));
 
-    while(raxNextChild(&piter)) {
-        printf("Next Key: %.*s\n", (int)piter.key_len, piter.key);
+    while(raxNextChild(&tciter)) {
+        printf("Next Key: %.*s\n", (int)tciter.key_len, tciter.key);
     }
 
-    raxStop(&piter);
+    raxStop(&tciter);
 
-    raxFree(prax);
+    raxFree(tcrax);
     return 0;
 }
 
