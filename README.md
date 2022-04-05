@@ -136,13 +136,13 @@ The additions to Rax include ``raxShowHex()``. When the 9 subscriptions above ar
 ```
 A full explanation of the notation above is in the Rax README and rax.h; a tricky part is that first character of a key is stored in the node pointing to the key, not in the key itself.
 
-Each key except for leaf Client IDs has an integer value associated with it which is the count of Client IDs in its subtree, e.g. the ``0x8`` associated with key node ``@``. This is currently useful in randomly picking a Client ID when matching a shared subscription and may in future help with dynamic search strategies. The Rax tree itself maintains total counts of all keys and nodes.
+Each key except for leaf Client IDs has an integer value associated with it which is the count of Client IDs in its subtree, e.g. the ``0x8`` associated with key ``@``. This is currently useful in randomly picking a Client ID when matching a shared subscription and may in future help with dynamic search strategies. The Rax tree itself maintains total counts of all keys and nodes.
 
 ### The Client tree
 
 This tree contains a subscriptions inversion for each client, topic aliases for clients, and will contain other client-based information.
 
-Topic aliases are in 2 synchronized subtrees: ``abt`` and ``tba``, providing alias-by-topic and topic-by-alias respectively. The topic alias leaf values are used to store the alias and the topic pointer – this usage simplifies the overwriting of aliases as allowed by MQTT.
+Topic aliases are in 2 synchronized subtrees: ``abt`` and ``tba`` for each client, providing alias-by-topic and topic-by-alias respectively. The topic alias leaf values are used to store the alias and the topic pointer – this usage simplifies the overwriting of aliases as allowed by MQTT.
 
 Adding topic alias ``8`` for Client ID ``1`` topic ``foo/bar`` and running ``raxShowHex()`` yields the following depiction of our 7 clients, their 9 subscriptions and the alias in the client tree (the value ``0x102da8088`` is the pointer to ``foo/bar``):
 
