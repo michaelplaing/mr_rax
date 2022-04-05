@@ -1,6 +1,7 @@
 #ifndef MR_RAX_H
 #define MR_RAX_H
 
+#include <stdbool.h>
 #include "mr_rax/rax.h"
 
 #define MAX_TOKENS 32
@@ -16,6 +17,9 @@ static uint8_t empty_tokenv[] = {0x1f, 0};
 
 int mr_insert_subscription(rax* tcrax, rax* crax, const char* subtopic, const uint64_t client);
 int mr_get_subscribed_clients(rax* tcrax, rax* srax, const char* pubtopic);
-int mr_upsert_client_topic_alias(rax* tcrax, const uint64_t client, const char* pubtopic, const uintptr_t alias);
+
+int mr_upsert_client_topic_alias(
+    rax* crax, const uint64_t client, const char* pubtopic, const uintptr_t alias, const bool incoming
+);
 
 #endif // MR_RAX_H

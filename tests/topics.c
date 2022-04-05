@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -79,12 +80,14 @@ int topic_fun(void) {
     }
 
     char pubtopic[] = "sport/tennis/matches";
-    char pubtopic2[] = "foo/bar";
+    char pubtopic2[] = "baz/bam";
+    char pubtopic3[] = "foo/bar";
     // char pubtopic[] = "s";
     // char pubtopic[] = "/foo/";
 
     // mr_upsert_client_topic_alias(crax, 1, pubtopic, 1);
-    mr_upsert_client_topic_alias(crax, 1, pubtopic2, 8);
+    mr_upsert_client_topic_alias(crax, 1, pubtopic2, 8, true);
+    mr_upsert_client_topic_alias(crax, 1, pubtopic3, 8, false);
 
     raxShowHex(tcrax);
     raxShowHex(crax);

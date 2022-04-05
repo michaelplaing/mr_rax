@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -222,50 +223,52 @@ int mr_get_subscribed_clients(rax* tcrax, rax* srax, const char* pubtopic) {
     mr_probe_subscriptions(tcrax, srax, topic2, level, tokenv, numtokens);
     return 0;
 }
-int mr_upsert_client_topic_alias(rax* tcrax, const uint64_t client, const char* pubtopic, const uintptr_t alias) {
+int mr_upsert_client_topic_alias(
+    rax* crax, const uint64_t client, const char* pubtopic, const uintptr_t alias, const bool isincoming
+) {
     size_t ptlen = strlen(pubtopic);
-    char topicbyalias[12]; // 8 + 3 + 1: <Client ID>"tba"<alias>
-    char aliasbytopic[ptlen + 11]; // 8 + 3 + ptlen: <Client ID>"abt"<pubtopic>
+    char* abt = isincoming ? "iabt" : "oabt";
+    char* tba = isincoming ? "itba" : "otba";
+    char topicbyalias[13]; // 8 + 4 + 1: <Client ID>"itba"<alias>
+    char aliasbytopic[ptlen + 12]; // 8 + 4 + ptlen: <Client ID>"iabt"<pubtopic>
     uint8_t clientv[8];
     for (int i = 0; i < 8; i++) clientv[i] = client >> ((7 - i) * 8) & 0xff;
 
-    // topicbyalias[0] = aliasbytopic[0] = 'C';
-    // raxTryInsert(tcrax, (uint8_t*)topicbyalias, 1, NULL, NULL);
     memcpy(topicbyalias, clientv, 8);
     memcpy(aliasbytopic, clientv, 8);
-    raxTryInsert(tcrax, (uint8_t*)topicbyalias, 8, NULL, NULL);
+    raxTryInsert(crax, (uint8_t*)topicbyalias, 8, NULL, NULL);
 
-    memcpy(topicbyalias + 8, "tba", 3);
-    raxTryInsert(tcrax, (uint8_t*)topicbyalias, 8 + 3, NULL, NULL);
-    memcpy(aliasbytopic + 8, "abt", 3);
-    raxTryInsert(tcrax, (uint8_t*)aliasbytopic, 8 + 3, NULL, NULL);
+    memcpy(topicbyalias + 8, tba, 4);
+    raxTryInsert(crax, (uint8_t*)topicbyalias, 8 + 4, NULL, NULL);
+    memcpy(aliasbytopic + 8, abt, 4);
+    raxTryInsert(crax, (uint8_t*)aliasbytopic, 8 + 4, NULL, NULL);
 
-    memcpy(aliasbytopic + 8 + 3, pubtopic, ptlen);
+    memcpy(aliasbytopic + 8 + 4, pubtopic, ptlen);
 
     uintptr_t old_alias;
-    if (!raxTryInsert(tcrax, (uint8_t*)aliasbytopic, 8 + 3 + ptlen, (void*)alias, (void**)&old_alias)) {
+    if (!raxTryInsert(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen, (void*)alias, (void**)&old_alias)) {
         char* pubtopic3;
-        memcpy(topicbyalias + 8 + 3, &old_alias, 1);
-        raxRemove(tcrax, (uint8_t*)topicbyalias, 8 + 3 + 1, (void**)&pubtopic3); // delete previous inversion
+        memcpy(topicbyalias + 8 + 4, &old_alias, 1);
+        raxRemove(crax, (uint8_t*)topicbyalias, 8 + 4 + 1, (void**)&pubtopic3); // delete previous inversion
         rax_free(pubtopic3);
-        raxInsert(tcrax, (uint8_t*)aliasbytopic, 8 + 3 + ptlen, (void*)alias, NULL); // overwrite
+        raxInsert(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen, (void*)alias, NULL); // overwrite
     }
 
-    memcpy(topicbyalias + 8 + 3, &alias, 1);
+    memcpy(topicbyalias + 8 + 4, &alias, 1);
     char* pubtopic2 = strdup(pubtopic); // free on deletion
 
     char* pubtopic4;
-    if (!raxTryInsert(tcrax, (uint8_t*)topicbyalias, 8 + 3 + 1, pubtopic2, (void**)&pubtopic4)) {
+    if (!raxTryInsert(crax, (uint8_t*)topicbyalias, 8 + 4 + 1, pubtopic2, (void**)&pubtopic4)) {
         size_t ptlen4 = strlen(pubtopic4);
-        memcpy(aliasbytopic + 8 + 3, pubtopic4, ptlen4);
-        raxRemove(tcrax, (uint8_t*)aliasbytopic, 8 + 3 + ptlen4, NULL); // delete previous inversion
-        raxInsert(tcrax, (uint8_t*)topicbyalias, 8 + 3 + 1, pubtopic2, NULL);
+        memcpy(aliasbytopic + 8 + 4, pubtopic4, ptlen4);
+        raxRemove(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen4, NULL); // delete previous inversion
+        raxInsert(crax, (uint8_t*)topicbyalias, 8 + 4 + 1, pubtopic2, NULL);
     }
 
     return 0;
 }
 
-int mr_get_client_alias_by_topic(rax* tcrax, const uint64_t client, const char* pubtopic, uint8_t* palias) {
+int mr_get_client_alias_by_topic(rax* crax, const uint64_t client, const char* pubtopic, uint8_t* palias) {
     size_t ptlen = strlen(pubtopic);
     char aliasbytopic[ptlen + 17]; // 1 + 8 + 7 + ptlen + 1: "C"<Client ID>"aliasbytopic"<pubtopic><alias>
 

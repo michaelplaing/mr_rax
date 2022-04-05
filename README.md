@@ -142,20 +142,24 @@ Each key except for leaf Client IDs has an integer value associated with it whic
 
 This tree contains a subscriptions inversion for each client, topic aliases for clients, and will contain other client-based information.
 
-Topic aliases are in 2 synchronized subtrees: ``abt`` and ``tba`` for each client, providing alias-by-topic and topic-by-alias respectively. The topic alias leaf values are used to store the alias and the topic pointer – this usage simplifies the overwriting of aliases as allowed by MQTT.
+Topic aliases are distinct for incoming ones, which are set by the client, and outgoing ones set by the server. Hence there are 2 pairs (handling inversion) of synchronized subtrees: ``iabt`` / ``itba`` and ``oabt`` / ``otba`` for each client, providing alias-by-topic and topic-by-alias respectively for incoming (client) and outgoing (server) aliases. The topic alias leaf values are used to store the alias and the topic pointer – this usage simplifies the overwriting of aliases as allowed by MQTT.
 
-Adding topic alias ``8`` for Client ID ``1`` topic ``foo/bar`` and running ``raxShowHex()`` yields the following depiction of our 7 clients, their 9 subscriptions and the alias in the client tree (the value ``0x102da8088`` is the pointer to ``foo/bar``):
+Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHex()`` yields the following depiction of our 7 clients, their 9 subscriptions and the 2 aliases in the client tree:
 
 ```
 "0x00000000000000" -> [0x01020304050607]
-        `-(.) [ast]
-               `-(a) "bt" -> "foo/bar" -> []=0x8
+        `-(.) [ios]
+               `-(i) [at]
+                      `-(a) "bt" -> "baz/bam" -> []=0x8
+                      `-(t) "ba" -> [0x08] -> []=0x100290088
+               `-(o) [at]
+                      `-(a) "bt" -> "foo/bar" -> []=0x8
+                      `-(t) "ba" -> [0x08] -> []=0x1002900a0
                `-(s) "ubs" -> [$f]
                                `-($) "SYS/foo/#" -> []
                                `-(f) "oo/" -> [#b]
                                                `-(#) []
                                                `-(b) "ar" -> []
-               `-(t) "ba" -> [0x08] -> []=0x102da8088
         `-(.) "subs" -> "foo/bar" -> []
         `-(.) "subs" -> "foo/bar/" -> []
         `-(.) "subs" -> "$share/baz/foo/bar" -> []
