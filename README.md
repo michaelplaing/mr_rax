@@ -134,9 +134,9 @@ The additions to Rax include ``raxShowHex()``. When the 9 subscriptions above ar
                                                                                                           `-(.) []
                                                                                                           `-(.) []
 ```
-A full explanation of the notation above is in the Rax README and rax.h; a tricky part is that first character of a key is stored in the node pointing to the key, not in the key itself.
+A full explanation of the notation above is in the Rax README and rax.h; a tricky part is that the first character of a key is stored in the node pointing to the key, not in the key itself.
 
-Each key except for leaf Client IDs has an integer value associated with it which is the count of Client IDs in its subtree, e.g. the ``0x8`` associated with key ``@``. This is currently useful in randomly picking a Client ID when matching a shared subscription and may in future help with dynamic search strategies. The Rax tree itself maintains total counts of all keys and nodes.
+Each key except for leaf Client IDs has an integer value associated with it which is the count of Client IDs in its subtree, e.g. the ``0x8`` associated with key ``@``. This is currently useful in randomly picking a Client ID when matching a shared subscription and in pruning the tree as subscriptions are deleted. The Rax tree itself maintains total counts of all keys and nodes.
 
 ### The Client tree
 
