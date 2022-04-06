@@ -166,7 +166,7 @@ Then 3 searches are performed in order at each level of the TC tree except for t
 
     - if this is the next to last level, gather its Client IDs and continue the searches; otherwise
 
-    - search the new ``+`` subtree and then continue the searches in this subtree.
+    - search the new ``+`` subtree forking from this one and then continue the searches in this subtree.
 
 3) Finally we try the search predicate ending in an explicit token, like ``bar``:
 
@@ -174,7 +174,7 @@ Then 3 searches are performed in order at each level of the TC tree except for t
 
     - if it is found but above the next to last level just continue the searches; else
 
-    - if it is not found, terminate this subtree search since there are no more possible matches; we are done with this subtree. [This is an optimization and the implmentation is being worked on - ml 20220406]
+    - if it is not found there are no more possible matches; we are done with this subtree.
 
 When we have finished all subtrees, including those necessary to handle ``+`` wildcards, we are done with part 1.
 
