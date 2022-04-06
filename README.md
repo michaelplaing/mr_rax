@@ -4,7 +4,13 @@ The mr_rax public functions so far are:
 
 - ``mr_insert_subscription()``: Insert an MQTT subscription topic (with optional wildcards) and a Client ID.
 
-- ``mr_get_topic_clients()``: For a published topic return the dedup'd set of Client IDs from all matching subscriptions. ``raxSeekChildren()`` (see below) will efficiently iterate through this set which is a Rax tree with depth 1.
+- ``mr_get_subscribed_clients()``: For a published topic return the dedup'd set of Client IDs from all matching subscriptions. ``raxSeekChildren()`` (see below) will efficiently iterate through this set which is a Rax tree with depth 1.
+
+- ``mr_upsert_client_topic_alias()``: Insert or update a topic/alias pair for a client.
+
+- ``mr_get_alias_by_topic()``: Get the alias for a topic and client, if any.
+
+- ``mr_get_topic_by_alias()``: Get the topic for an alias and client, if any.
 
 Note: MQTT shared subscriptions are fully supported.
 
