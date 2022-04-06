@@ -190,13 +190,13 @@ For part 1, the internally formatted publish topic is tokenized using '/' as the
 
 Then 3 searches are performed in order at each level of the TC tree except for the last which has 1 search. For example the levels are: ``@``; ``@/foo``, ``@/foo/bar`` and the search predicates are: ``@/#``, ``@/+``, ``@/foo``; ``@/foo/#``, ``@/foo/+``, ``@/foo/bar``; ``@/foo/bar/#``. The last search is necessary because ``#`` matches the level above.
 
-1) For a found search predicate ending in ``#``, we can gather its Client IDs and continue the searches unless this is the last level, in which case we are done.
+1) For a found search predicate ending in ``#``, we can gather its Client IDs and continue the searches unless this is the last level, in which case we are done with this subtree.
 
 2) If the found search predicate ends in ``+``, we take one of 2 routes:
 
     - if this is the next to last level, gather its Client IDs and continue the searches; otherwise
 
-    - search this ``+`` subtree and then continue the searches in this subtree.
+    - search the new ``+`` subtree and then continue the searches in this subtree.
 
 3) Finally we try the search predicate ending in an explicit token, like ``bar``:
 
@@ -204,7 +204,9 @@ Then 3 searches are performed in order at each level of the TC tree except for t
 
     - if it is found but above the next to last level just continue the searches; else
 
-    - if it is not found, terminate this subtree search since there are no more possible matches; we are done.
+    - if it is not found, terminate this subtree search since there are no more possible matches; we are done with this subtree.
+
+When we have finished all subtrees, including those necessary to handle ``+`` wildcards, we are done with part 1.
 
 For part 2 of the strategy, we proceed in 2 steps to gather Client IDs:
 
