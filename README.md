@@ -144,36 +144,6 @@ A full explanation of the notation above is in the Rax README and ``rax.h``; a t
 
 Each key except for leaf Client IDs has an integer value associated with it which is the count of Client IDs in its subtree, e.g. the ``0x8`` associated with key ``@``. This is currently useful in randomly picking a Client ID when matching a shared subscription and in pruning the tree as subscriptions are deleted. The Rax tree itself maintains total counts of all keys and nodes.
 
-### The Client tree
-
-This tree contains a subscriptions inversion for each client, topic aliases for clients, and will contain other client-based information.
-
-Topic aliases are distinct for incoming ones, which are set by the client, and outgoing ones set by the server. Hence there are 2 pairs (handling inversion) of synchronized subtrees: ``iabt`` / ``itba`` and ``oabt`` / ``otba`` for each client, providing alias-by-topic and topic-by-alias respectively for incoming (client) and outgoing (server) aliases. The topic alias leaf values are used to store the alias and the topic pointer – this usage simplifies the overwriting of aliases as allowed by MQTT.
-
-Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHex()`` yields the following depiction of our 7 clients, their 9 subscriptions and the 2 aliases in the client tree:
-
-```
-"0x00000000000000" -> [0x01020304050607]
-        `-(.) [ios]
-               `-(i) [at]
-                      `-(a) "bt" -> "baz/bam" -> []=0x8
-                      `-(t) "ba" -> [0x08] -> []=0x100290088
-               `-(o) [at]
-                      `-(a) "bt" -> "foo/bar" -> []=0x8
-                      `-(t) "ba" -> [0x08] -> []=0x1002900a0
-               `-(s) "ubs" -> [$f]
-                               `-($) "SYS/foo/#" -> []
-                               `-(f) "oo/" -> [#b]
-                                               `-(#) []
-                                               `-(b) "ar" -> []
-        `-(.) "subs" -> "foo/bar" -> []
-        `-(.) "subs" -> "foo/bar/" -> []
-        `-(.) "subs" -> "$share/baz/foo/bar" -> []
-        `-(.) "subs" -> "$share/baz/foo/bar" -> []
-        `-(.) "subs" -> "+/bar" -> []
-        `-(.) "subs" -> "foo/#" -> []
-```
-
 ### TC tree search strategy
 
 This is the strategy used by ``mr_get_subscribed_clients()`` to extract a dedup'd list of subscribed Client IDs when provided with a valid publish topic (no wildcards).
@@ -213,3 +183,33 @@ For part 2 of the strategy, we proceed in 2 steps to gather Client IDs:
 1) Append the Client Mark (``0xef``) to the current key and search for it. If found, iterate over its Client ID children (the Client IDs) inserting each into the result set.
 
 2) Append the Shared Mark (``0xff``) to the current key and search for it. If found iterate over the share name children and, for each share name, get its Client ID children selecting one at random for insertion into the result set.
+
+### The Client tree
+
+This tree contains a subscriptions inversion for each client, topic aliases for clients, and will contain other client-based information.
+
+Topic aliases are distinct for incoming ones, which are set by the client, and outgoing ones set by the server. Hence there are 2 pairs (handling inversion) of synchronized subtrees: ``iabt`` / ``itba`` and ``oabt`` / ``otba`` for each client, providing alias-by-topic and topic-by-alias respectively for incoming (client) and outgoing (server) aliases. The topic alias leaf values are used to store the alias and the topic pointer – this usage simplifies the overwriting of aliases as allowed by MQTT.
+
+Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHex()`` yields the following depiction of our 7 clients, their 9 subscriptions and the 2 aliases in the client tree:
+
+```
+"0x00000000000000" -> [0x01020304050607]
+        `-(.) [ios]
+               `-(i) [at]
+                      `-(a) "bt" -> "baz/bam" -> []=0x8
+                      `-(t) "ba" -> [0x08] -> []=0x100290088
+               `-(o) [at]
+                      `-(a) "bt" -> "foo/bar" -> []=0x8
+                      `-(t) "ba" -> [0x08] -> []=0x1002900a0
+               `-(s) "ubs" -> [$f]
+                               `-($) "SYS/foo/#" -> []
+                               `-(f) "oo/" -> [#b]
+                                               `-(#) []
+                                               `-(b) "ar" -> []
+        `-(.) "subs" -> "foo/bar" -> []
+        `-(.) "subs" -> "foo/bar/" -> []
+        `-(.) "subs" -> "$share/baz/foo/bar" -> []
+        `-(.) "subs" -> "$share/baz/foo/bar" -> []
+        `-(.) "subs" -> "+/bar" -> []
+        `-(.) "subs" -> "foo/#" -> []
+```
