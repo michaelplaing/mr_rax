@@ -174,7 +174,7 @@ Then 3 searches are performed in order at each level of the TC tree except for t
 
     - if it is found but above the next to last level just continue the searches; else
 
-    - if it is not found, terminate this subtree search since there are no more possible matches; we are done with this subtree.
+    - if it is not found, terminate this subtree search since there are no more possible matches; we are done with this subtree. [This is an optimization and the implmentation is being worked on - ml 20220406]
 
 When we have finished all subtrees, including those necessary to handle ``+`` wildcards, we are done with part 1.
 
@@ -183,6 +183,8 @@ For part 2 of the strategy, we proceed in 2 steps to gather Client IDs:
 1) Append the Client Mark (``0xef``) to the current key and search for it. If found, iterate over its Client ID children (the Client IDs) inserting each into the result set.
 
 2) Append the Shared Mark (``0xff``) to the current key and search for it. If found iterate over the share name children and, for each share name, get its Client ID children selecting one at random for insertion into the result set.
+
+Running ``mr_get_subscribed_clients()`` using publish topic ``foo/bar`` against our TC tree above results in Client IDs: `` 1 2 4 6 7``. Running it more often results in `` 1 2 5 6 7`` – this is due to the share ``baz`` being shared by clients ``4`` and ``5`` whereas the other subscriptions are normal. Note also that Client ID ``1`` only appears once although it is present in 2 matching subscriptions: ``foo/bar`` and ``foo/#``.
 
 ### The Client tree
 

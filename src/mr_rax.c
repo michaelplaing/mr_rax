@@ -204,9 +204,9 @@ static int mr_probe_subscriptions(rax* tcrax, rax* srax, char* topic, int level,
         )  {
             mr_get_topic_clients(tcrax, srax, (uint8_t*)topic2, strlen(topic2));
         }
-        else {
-            break; // no more possible matches
-        }
+        // else {
+        //     break; // no more possible matches
+        // }
 
         strlcat(topic, "/", MAX_TOPIC_LEN);
         level++;

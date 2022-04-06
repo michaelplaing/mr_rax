@@ -14,33 +14,33 @@ int topic_fun(void) {
     rax* crax = raxNew();
 
     char* subtopicclientv[] = {
-        "$share/bom/bip/bop:21",
-        "$sys/baz/bam:20",
-        "$share/bom/sport/tennis/matches/#:1001;1002;1003;1022;1023",
-        "$share/bip/sport/tennis/matches/france/amateur/+:2023;2024;2004;2005;2006;2002;2003",
-        "$share/foo/$sys/baz/bam:25",
-        "sport/tennis/matches:1;2;3",
-        "sport/tennis/matches/italy/#:4",
-        "sport/tennis/matches/italy/#:5",
-        "sport/tennis/matches/united states/amateur/+:6",
-        "sport/tennis/matches/#:7;8",
-        "sport/tennis/matches/+/professional/+:3;5",
-        "sport/tennis/matches/+/amateur/#:9",
-        "sport/tennis/matches/italy/professional/i6:12;1",
-        "sport/tennis/matches/italy/professional/i5:2",
-        "sport/tennis/matches/ethiopia/professional/e4:11;7;1",
-        "sport/tennis/matches/ethopia/professional/e10:21;27",
-        "sport/tennis/matches/england/professional/e1:10",
-        "sport/tennis/matches/england/professional/e2:13;9",
-        "sport/tennis/matches/england/professional/e3:9;13",
-        "sport/tennis/matches/france/professional/f4:14",
-        "sport/tennis/matches/france/amateur/af1:6",
-        "sport/tennis/matches/france/amateur/af2:66",
-        "sport/tennis/matches/france/amateur/af1/#:99",
-        "sport/tennis/matches/france/amateur/af1/\":999",
-        "sport/tennis/matches/france/amateur/af1/foo:9999",
-        "sport/+/+/+/amateur/#:10;11;9",
-        "sport/tennis/matches/united states/amateur/au2:2;4;8;10",
+        // "$share/bom/bip/bop:21",
+        // "$sys/baz/bam:20",
+        // "$share/bom/sport/tennis/matches/#:1001;1002;1003;1022;1023",
+        // "$share/bip/sport/tennis/matches/france/amateur/+:2023;2024;2004;2005;2006;2002;2003",
+        // "$share/foo/$sys/baz/bam:25",
+        // "sport/tennis/matches:1;2;3",
+        // "sport/tennis/matches/italy/#:4",
+        // "sport/tennis/matches/italy/#:5",
+        // "sport/tennis/matches/united states/amateur/+:6",
+        // "sport/tennis/matches/#:7;8",
+        // "sport/tennis/matches/+/professional/+:3;5",
+        // "sport/tennis/matches/+/amateur/#:9",
+        // "sport/tennis/matches/italy/professional/i6:12;1",
+        // "sport/tennis/matches/italy/professional/i5:2",
+        // "sport/tennis/matches/ethiopia/professional/e4:11;7;1",
+        // "sport/tennis/matches/ethopia/professional/e10:21;27",
+        // "sport/tennis/matches/england/professional/e1:10",
+        // "sport/tennis/matches/england/professional/e2:13;9",
+        // "sport/tennis/matches/england/professional/e3:9;13",
+        // "sport/tennis/matches/france/professional/f4:14",
+        // "sport/tennis/matches/france/amateur/af1:6",
+        // "sport/tennis/matches/france/amateur/af2:66",
+        // "sport/tennis/matches/france/amateur/af1/#:99",
+        // "sport/tennis/matches/france/amateur/af1/\":999",
+        // "sport/tennis/matches/france/amateur/af1/foo:9999",
+        // "sport/+/+/+/amateur/#:10;11;9",
+        // "sport/tennis/matches/united states/amateur/au2:2;4;8;10",
         // "/foo:1;2",
         //"/f:1",
         // "/foo/:3;5",
@@ -50,12 +50,12 @@ int topic_fun(void) {
         // "s:1",
         // "s/#:2",
         // "foo:9;10;1;2",
-        // "foo/bar:1;2",
-        // "foo/bar/:3",
-        // "$share/baz/foo/bar:4;5",
-        // "+/bar:6",
-        // "foo/#:7;1",
-        // "$SYS/foo/#:1",
+        "foo/bar:1;2",
+        "foo/bar/:3",
+        "$share/baz/foo/bar:4;5",
+        "+/bar:6",
+        "foo/#:7;1",
+        "$SYS/foo/#:1",
     };
 
     size_t numtopics = sizeof(subtopicclientv) / sizeof(subtopicclientv[0]);
@@ -79,11 +79,11 @@ int topic_fun(void) {
         }
     }
 
-    char pubtopic[] = "sport/tennis/matches";
+    // char pubtopic[] = "sport/tennis/matches";
     char pubtopic2[] = "baz/bam";
     char pubtopic3[] = "foo/bar";
     // char pubtopic[] = "s";
-    // char pubtopic[] = "/foo/";
+    char pubtopic[] = "foo/bar";
 
     mr_upsert_client_topic_alias(crax, 1, true, pubtopic, 1);
     mr_upsert_client_topic_alias(crax, 1, true, pubtopic2, 2);
