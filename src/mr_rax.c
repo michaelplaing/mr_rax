@@ -201,7 +201,12 @@ static int mr_probe_subscriptions(rax* tcrax, rax* srax, char* topic, int level,
         if (
             raxFind(tcrax, (uint8_t*)topic2, strlen(topic2)) != raxNotFound &&
             level == (numtokens - 2)
-        )  mr_get_topic_clients(tcrax, srax, (uint8_t*)topic2, strlen(topic2));
+        )  {
+            mr_get_topic_clients(tcrax, srax, (uint8_t*)topic2, strlen(topic2));
+        }
+        else {
+            break; // no more possible matches
+        }
 
         strlcat(topic, "/", MAX_TOPIC_LEN);
         level++;

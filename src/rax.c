@@ -2037,7 +2037,7 @@ int raxNextChild(raxIterator* it) {
 
 int raxSeekChildren(raxIterator* it, unsigned char* key, size_t len) {
     if (key == NULL) {
-        raxTryInsert(it->rt, (uint8_t*)"", 0, NULL, NULL); // make a key
+        raxTryInsert(it->rt, (uint8_t*)"", 0, NULL, NULL); // make a key if not already
         if (!raxSeek(it, "=", (uint8_t*)"", 0)) return 0; // stop_node will be head
     }
     else {

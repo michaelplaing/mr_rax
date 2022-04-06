@@ -43,11 +43,11 @@ The internal TC tree is composed of:
 - ``/`` as the separator between the above tokens
 
 Then for normal subscription clients:
-- ``0xef`` as the client marker (invalid UTF8)
+- ``0xef`` as the Client Mark (invalid UTF8)
 - 8 bytes of Client ID in big endian (network) order
 
 And for shared subscription clients:
-- ``0xff`` as the shared marker (invalid UTF8)
+- ``0xff`` as the Shared Mark (invalid UTF8)
 - the share name
 - 8 bytes of Client ID in big endian order
 
@@ -173,3 +173,41 @@ Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus out
         `-(.) "subs" -> "+/bar" -> []
         `-(.) "subs" -> "foo/#" -> []
 ```
+
+### TC tree search strategy
+
+This is the strategy used by ``mr_get_subscribed_clients()`` to extract a dedup'd list of subscribed Client IDs when provided with a valid publish topic (no wildcards).
+
+The strategy is executed in 2 parts:
+
+1) a subscribe topic (may have wildcards) is found in the TC tree that matches the publish topic; then
+
+2) the normal and/or shared subscription Client IDs associated with the subscribe topic, if there are any, are found and added to the unique set of Client IDs.
+
+This is repeated until all possible matches have been found and the Client IDs noted.
+
+For part 1, the internally formatted publish topic is tokenized using '/' as the separator. For example, the external publish topic ``foo/bar`` is tokenized as: ``@``; ``foo``; ``bar``. The tokens are kept in a vector.
+
+Then 3 searches are performed in order at each level of the TC tree except for the last which has 1 search. For example the levels are: ``@``; ``@/foo``, ``@/foo/bar`` and the search predicates are: ``@/#``, ``@/+``, ``@/foo``; ``@/foo/#``, ``@/foo/+``, ``@/foo/bar``; ``@/foo/bar/#``. The last search is necessary because ``#`` matches the level above.
+
+1) For a found search predicate ending in ``#``, we can gather its Client IDs and continue the searches unless this is the last level, in which case we are done.
+
+2) If the found search predicate ends in ``+``, we take one of 2 routes:
+
+    - if this is the next to last level, gather its Client IDs and continue the searches; otherwise
+
+    - search this ``+`` subtree and then continue the searches in this subtree.
+
+3) Finally we try the search predicate ending in an explicit token, like ``bar``:
+
+    - if it is found and it is the next to last level, gather its Client IDs and continue the searches (to search for ``#``); else
+
+    - if it is found but above the next to last level just continue the searches; else
+
+    - if it is not found, terminate this subtree search since there are no more possible matches; we are done.
+
+For part 2 of the strategy, we proceed in 2 steps to gather Client IDs:
+
+1) Append the Client Mark (``0xef``) to the current key and search for it. If found, iterate over its Client ID children (the Client IDs) inserting each into the result set.
+
+2) Append the Shared Mark (``0xff``) to the current key and search for it. If found iterate over the share name children and, for each share name, get its Client ID children selecting one at random for insertion into the result set.
