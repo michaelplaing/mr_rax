@@ -1,10 +1,10 @@
-## mr_rax: functions to handle MQTT data requirements using Rax
+## **mr_rax**: Functions to handle MQTT data requirements using Rax
 
-The mr_rax public functions so far are:
+The **mr_rax** public functions so far are:
 
 - ``mr_insert_subscription()``: Insert an MQTT subscription topic (with optional wildcards) and a Client ID.
 
-- ``mr_get_subscribed_clients()``: For a published topic return the dedup'd set of Client IDs from all matching subscriptions. ``raxSeekChildren()`` (see below) will efficiently iterate through this set which is a Rax tree with depth 1.
+- ``mr_get_subscribed_clients()``: For a published topic return the dedup'd set of Client IDs from all matching subscriptions. ``raxSeekChildren()`` (see below) will efficiently iterate through this set which is a Rax tree with key depth 1.
 
 - ``mr_upsert_client_topic_alias()``: Insert or update a topic/alias pair for a client.
 
@@ -20,7 +20,7 @@ This project is set up to use as one of the CMake subprojects in a comprehensive
 
 Some additions and modifications have also been made to Rax itself to support the following functions needed by the above. There is also some experimental code included to avoid repetitive scanning of node data for the next child node index, which may be particularly important for the anticipated wide spans of binary Client IDs.
 
-- ``raxSeekChildren()``: Seek a key in order to get its immediate child keys. A key of NULL seeks the root which is useful for handling a Rax tree of depth 1.
+- ``raxSeekChildren()``: Seek a key in order to get its immediate child keys. A key of NULL seeks the root (key depth 0) which is useful for handling a Rax tree of key depth 1, e.g. a set of Client IDs.
 
 - ``raxNextChild()``: Return the next immediate child key of the key sought above.
 
@@ -34,22 +34,22 @@ The external TC tree conforms to MQTT.
 
 The internal TC tree is composed of:
 
-- The root
+- The root;
 - The hierarchy token:
-    - ``@`` for the normal hierarchy
-    - ``$`` for topics starting with '\$'
-- For shared subscriptions, the topic is placed in the hierarchy above and the rest treated as described below.
-- The topic tokens (the 0-length token is represented by ``0x1f`` which is invalid in MQTT)
-- ``/`` as the separator between the above tokens
+    - ``@`` for the normal hierarchy; and
+    - ``$`` for topics starting with '\$';
+- For shared subscriptions, the topic is placed in the hierarchy above and the rest treated as described below:
+- The topic tokens (the 0-length token is represented by ``0x1f`` which is invalid in MQTT);
+- ``/`` as the separator between the above tokens.
 
 Then for normal subscription clients:
-- ``0xef`` as the Client Mark (invalid UTF8)
-- 8 bytes of Client ID in big endian (network) order
+- ``0xef`` as the Client Mark (invalid UTF8); and
+- 8 bytes of Client ID in big endian (network) order.
 
 And for shared subscription clients:
-- ``0xff`` as the Shared Mark (invalid UTF8)
-- the share name
-- 8 bytes of Client ID in big endian order
+- ``0xff`` as the Shared Mark (invalid UTF8);
+- the share name; and
+- 8 bytes of Client ID in big endian order.
 
 ### Subscription examples:
 
@@ -144,11 +144,11 @@ A full explanation of the notation above is in the Rax README and ``rax.h``; a t
 
 Each key except for leaf Client IDs has an integer value associated with it which is the count of Client IDs in its subtree, e.g. the ``0x8`` associated with key ``@``. This is currently useful in randomly picking a Client ID when matching a shared subscription and in pruning the tree as subscriptions are deleted. The Rax tree itself maintains total counts of all keys and nodes.
 
-### TC tree search strategy
+### The TC tree search strategy
 
 This is the strategy used by ``mr_get_subscribed_clients()`` to extract a dedup'd list of subscribed Client IDs when provided with a valid publish topic (no wildcards).
 
-The strategy is executed in 2 parts:
+The strategy is repeatedly executed in 2 phases:
 
 1) a subscribe topic (may have wildcards) is found in the TC tree that matches the publish topic; then
 
@@ -156,11 +156,11 @@ The strategy is executed in 2 parts:
 
 This is repeated until all possible matches have been found and the Client IDs noted.
 
-For part 1, the internally formatted publish topic is tokenized using '/' as the separator. For example, the external publish topic ``foo/bar`` is tokenized as: ``@``; ``foo``; ``bar``. The tokens are kept in a vector.
+For phase 1, the internally formatted publish topic is tokenized using '/' as the separator. For example, the external publish topic ``foo/bar`` is tokenized as: ``@``; ``foo``; ``bar``.
 
-Then 3 searches are performed in order at each level of the TC tree except for the last which has 1 search. For example the levels are: ``@``; ``@/foo``, ``@/foo/bar`` and the search predicates are: ``@/#``, ``@/+``, ``@/foo``; ``@/foo/#``, ``@/foo/+``, ``@/foo/bar``; ``@/foo/bar/#``. The last search is necessary because ``#`` matches the level above.
+Then 3 searches are performed in order at each level of the TC tree except for the last which has 1 search. For the example the levels are: ``@``; ``@/foo``, ``@/foo/bar`` and the search predicates are: ``@/#``, ``@/+``, ``@/foo``; ``@/foo/#``, ``@/foo/+``, ``@/foo/bar``; ``@/foo/bar/#``. The last search is necessary because ``#`` matches the level above.
 
-1) For a found search predicate ending in ``#``, we can gather its Client IDs and continue the searches unless this is the last level, in which case we are done with this subtree.
+1) For a found search predicate ending in ``#``, we gather its Client IDs (phase 2) and continue the searches unless this is the last level, in which case we are done with this subtree.
 
 2) If the found search predicate ends in ``+``, we take one of 2 routes:
 
@@ -174,17 +174,19 @@ Then 3 searches are performed in order at each level of the TC tree except for t
 
     - if it is found but above the next to last level just continue the searches; else
 
-    - if it is not found there are no more possible matches; we are done with this subtree.
+    - if it is not found then there are no more possible matches; we are done with this subtree.
 
-When we have finished all subtrees, including those necessary to handle ``+`` wildcards, we are done with part 1.
+When we have finished all subtrees, including those necessary to handle ``+`` wildcards, we are done.
 
-For part 2 of the strategy, we proceed in 2 steps to gather Client IDs:
+Phase 2 of the strategy, gathering Client IDs, proceeds in 2 steps:
 
-1) Append the Client Mark (``0xef``) to the current key and search for it. If found, iterate over its Client ID children (the Client IDs) inserting each into the result set.
+1) Append the Client Mark (``0xef``) to the current key and search for the key. If found, iterate over its Client ID children (the Client IDs) inserting each into the result set.
 
-2) Append the Shared Mark (``0xff``) to the current key and search for it. If found iterate over the share name children and, for each share name, get its Client ID children selecting one at random for insertion into the result set.
+2) Append the Shared Mark (``0xff``) to the current key and search for it. If found iterate over the share name children, e.g. ``baz``, and, for each share name, get its Client ID children selecting one at random for insertion into the result set.
 
-Running ``mr_get_subscribed_clients()`` using publish topic ``foo/bar`` against our TC tree above results in Client IDs: `` 1 2 4 6 7``. Running it more often results in `` 1 2 5 6 7`` – this is due to the share ``baz`` being shared by clients ``4`` and ``5`` whereas the other subscriptions are normal. Note also that Client ID ``1`` only appears once although it is present in 2 matching subscriptions: ``foo/bar`` and ``foo/#``.
+Running ``mr_get_subscribed_clients()`` using publish topic ``foo/bar`` against our TC tree above results in Client IDs: `` 1 2 4 6 7``. Repeatedly running it will result in `` 1 2 5 6 7`` about half the time – this is due to the share ``baz`` being shared by clients ``4`` and ``5`` whereas the other subscriptions are normal.
+
+Note also that Client ID ``1`` only appears once although it is present in 2 matching subscriptions: ``foo/bar`` and ``foo/#``; also Client ID ``3`` is not present since subscription topic ``foo/bar/`` does not match the publish topic.
 
 ### The Client tree
 
@@ -192,7 +194,7 @@ This tree contains a subscriptions inversion for each client, topic aliases for 
 
 Topic aliases are distinct for incoming ones, which are set by the client, and outgoing ones set by the server. Hence there are 2 pairs (handling inversion) of synchronized subtrees: ``iabt`` / ``itba`` and ``oabt`` / ``otba`` for each client, providing alias-by-topic and topic-by-alias respectively for incoming (client) and outgoing (server) aliases. The topic alias leaf values are used to store the alias and the topic pointer – this usage simplifies the overwriting of aliases as allowed by MQTT.
 
-Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHex()`` yields the following depiction of our 7 clients, their 9 subscriptions and the 2 aliases in the client tree:
+Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHex()`` yields the following depiction of our 7 clients, their 9 subscriptions and the 2 aliases in the client tree – the short hex values in the leaf nodes are aliases and the longer ones are pointers to topic strings:
 
 ```
 "0x00000000000000" -> [0x01020304050607]
