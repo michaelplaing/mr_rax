@@ -199,11 +199,11 @@ static int mr_probe_subscriptions(rax* tcrax, rax* srax, char* topic, int level,
         token = tokenv[level + 1];
         snprintf(topic2, MAX_TOPIC_LEN, "%s/%s", topic, token);
 
-        if (raxFind(tcrax, (uint8_t*)topic2, strlen(topic2)) == raxNotFound) {
-            break; // no more possible matches
-        }
-        else { // found
+        if (raxFind(tcrax, (uint8_t*)topic2, strlen(topic2)) != raxNotFound) {
             if (level == (numtokens - 2)) mr_get_topic_clients(tcrax, srax, (uint8_t*)topic2, strlen(topic2));
+        }
+        else {
+            break; // no more possible matches
         }
 
         strlcat(topic, "/", MAX_TOPIC_LEN);
