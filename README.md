@@ -39,7 +39,7 @@ The internal TC tree is composed of:
     - ``@`` for the normal hierarchy; and
     - ``$`` for topics starting with '\$';
 - For shared subscriptions, the topic is placed in the hierarchy above and the rest treated as described below:
-- The topic tokens (the 0-length token is represented by ``0x1f`` which is invalid in MQTT);
+- The topic tokens (the 0-length token is represented by ``0x1f`` which is invalid in MQTT); and
 - ``/`` as the separator between the above tokens.
 
 Then for normal subscription clients:
@@ -192,7 +192,9 @@ Note also that Client ID ``1`` only appears once although it is present in 2 mat
 
 This tree contains a subscriptions inversion for each client, topic aliases for clients, and will contain other client-based information.
 
-Topic aliases are distinct for incoming ones, which are set by the client, and outgoing ones set by the server. Hence there are 2 pairs (handling inversion) of synchronized subtrees: ``iabt`` / ``itba`` and ``oabt`` / ``otba`` for each client, providing alias-by-topic and topic-by-alias respectively for incoming (client) and outgoing (server) aliases. The topic alias leaf values are used to store the alias and the topic pointer – this usage simplifies the overwriting of aliases as allowed by MQTT.
+Topic aliases are distinct for incoming ones, which are set by the client, and outgoing ones set by the server. Hence there are 2 pairs (handling inversion) of synchronized subtrees: ``iabt`` / ``itba`` and ``oabt`` / ``otba`` for each client, providing alias-by-topic and topic-by-alias respectively for incoming (client) and outgoing (server) aliases.
+
+The topic alias leaf values are used to store the alias and the topic pointer, since we do not need to search on them; this usage simplifies the updating of aliases and also reduces tree depth.
 
 Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHex()`` yields the following depiction of our 7 clients, their 9 subscriptions and the 2 aliases in the client tree – the short hex values in the leaf nodes are aliases and the longer ones are pointers to topic strings:
 
