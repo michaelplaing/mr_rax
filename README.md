@@ -24,9 +24,13 @@ This project is set up for use as one of the CMake subprojects in a comprehensiv
 
 Some additions and modifications have also been made to Rax itself to support the following functions needed by the above. There is also some experimental code included to avoid repetitive scanning of node data for the next child node index, which may be particularly important for the anticipated wide spans of binary Client IDs.
 
-- ``raxSeekChildren()``: Seek a key in order to get its immediate child keys. A key of NULL seeks the root (key depth 0) which is useful for handling a Rax tree of key depth 1, e.g. a set of Client IDs.
+- ``raxSeekChildren()``: Seek a key in order to get its immediate child keys.
 
 - ``raxNextChild()``: Return the next immediate child key of the key sought above.
+
+- ``raxSeekSet()``:  Seek the beginning of a set (a Rax tree with key depth 1), e.g. a set of Client IDs.
+
+- ``raxNextInSet()``: Return the next key in the set sought above.
 
 And for easier visualization of binary data, e.g. Client IDs:
 

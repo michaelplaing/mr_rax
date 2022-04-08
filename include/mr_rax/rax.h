@@ -221,6 +221,8 @@ void raxSetData(raxNode *n, void *data, int isdata);
 // mr_rax additions by ml 20220401
 int raxSeekChildren(raxIterator *it, unsigned char *ele, size_t len);
 int raxNextChild(raxIterator *it);
+int raxNextInSet(raxIterator* it);
+int raxSeekSet(raxIterator* it);
 void raxShowHex(rax *rax);
 int raxInsertWithData(rax *rax, unsigned char *s, size_t len, uintptr_t data, uintptr_t* old);
 int raxTryInsertWithData(rax *rax, unsigned char *s, size_t len, uintptr_t data, uintptr_t* old);

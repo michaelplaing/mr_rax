@@ -112,9 +112,9 @@ int topic_fun(void) {
     raxIterator siter;
     raxStart(&siter, srax);
 
-    raxSeekChildren(&siter, NULL, 0);
+    raxSeekSet(&siter);
 
-    while(raxNextChild(&siter)) {
+    while(raxNextInSet(&siter)) {
         uint64_t client = 0;
         for (int i = 0; i < 8; i++) client += siter.key[i] << ((8 - i - 1) * 8);
         printf(" %llu", client);
@@ -130,7 +130,7 @@ int topic_fun(void) {
     // char topic[MAX_TOPIC_LEN];
     // mr_get_normalized_topic(pubtopic, topic);
     // printf("raxSeekChildren for '%s'\n", topic);
-    // // printf("raxFind %s:: value: %lu\n", topic, (uintptr_t)raxFind(tcrax, (uint8_t*)topic, strlen(topic)));
+    // printf("raxFind %s:: value: %lu\n", topic, (uintptr_t)raxFind(tcrax, (uint8_t*)topic, strlen(topic)));
     // raxIterator tciter;
     // raxStart(&tciter, tcrax);
     // raxSeekChildren(&tciter, (uint8_t*)topic, strlen(topic));

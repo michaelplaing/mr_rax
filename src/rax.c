@@ -2040,16 +2040,13 @@ int raxNextChild(raxIterator* it) {
     return 1;
 }
 
-int raxSeekChildren(raxIterator* it, unsigned char* key, size_t len) {
-    if (key == NULL) {
-        raxTryInsert(it->rt, (uint8_t*)"", 0, NULL, NULL); // make a key if not already
-        if (!raxSeek(it, "=", (uint8_t*)"", 0)) return 0; // stop_node will be head
-    }
-    else {
-        if (!raxSeek(it, "=", key, len)) return 0;
-        it->stop_node = raxStackPeek(&it->stack); // terminate on ascent above starting node
-    }
+int raxNextInSet(raxIterator* it) {
+    return raxNextChild(it);
+}
 
+int raxSeekChildren(raxIterator* it, unsigned char* key, size_t len) {
+    if (!raxSeek(it, "=", key, len)) return 0;
+    if (len) it->stop_node = raxStackPeek(&it->stack); // terminate on ascent above starting node
     if (it->flags & RAX_ITER_EOF) return 1;
 
     while(1) { // find the 1st child key
@@ -2076,6 +2073,11 @@ int raxSeekChildren(raxIterator* it, unsigned char* key, size_t len) {
             return 1;
         }
     }
+}
+
+int raxSeekSet(raxIterator* it) {
+    raxTryInsert(it->rt, (uint8_t*)"", 0, NULL, NULL); // make a key if not already
+    return raxSeekChildren(it, (uint8_t*)"", 0);
 }
 
 void raxRecursiveShowHex(int level, int lpad, raxNode *n) {
