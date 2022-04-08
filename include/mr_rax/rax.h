@@ -100,8 +100,10 @@ typedef struct raxNode {
     uint32_t iskey:1;     /* Does this node contain a key? */
     uint32_t isnull:1;    /* Associated value is NULL (don't store it). */
     uint32_t iscompr:1;   /* Node is compressed. */
-    uint32_t memo:8; // mr_rax additions ml 20220401: next child offset
-    uint32_t size:21;     /* Number of children, or compressed string len. */
+    uint32_t isdata:1;   /* Associated value is data not an allocated pointer. */
+    uint32_t reserved:4;
+    uint32_t memo:8; // mr_rax additions ml 20220401: used for next child offset
+    uint32_t size:16;     /* Number of children, or compressed string len. */
     /* Data layout is as follows:
      *
      * If node is not compressed we have 'size' bytes, one for each children
@@ -214,11 +216,15 @@ void raxSetDebugMsg(int onoff);
 
 /* Internal API. May be used by the node callback in order to access rax nodes
  * in a low level way, so this function is exported as well. */
-void raxSetData(raxNode *n, void *data);
+void raxSetData(raxNode *n, void *data, int isdata);
 
 // mr_rax additions by ml 20220401
 int raxSeekChildren(raxIterator *it, unsigned char *ele, size_t len);
 int raxNextChild(raxIterator *it);
 void raxShowHex(rax *rax);
+int raxInsertWithData(rax *rax, unsigned char *s, size_t len, uintptr_t data, uintptr_t* old);
+int raxTryInsertWithData(rax *rax, unsigned char *s, size_t len, uintptr_t data, uintptr_t* old);
+int raxRemoveWithData(rax *rax, unsigned char *s, size_t len, uintptr_t* old);
+void raxFreeWithData(rax *rax);
 
 #endif

@@ -4,6 +4,10 @@ The **mr_rax** public functions so far are:
 
 - ``mr_insert_subscription()``: Insert an MQTT subscription topic (with optional wildcards) and a Client ID.
 
+- ``mr_remove_subscription()``: Remove an MQTT subscription topic for a Client ID.
+
+- ``mr_remove_client_subscriptions``: Remove all subscriptions for a client. [not yet implmented]
+
 - ``mr_get_subscribed_clients()``: For a published topic return the dedup'd set of Client IDs from all matching subscriptions. ``raxSeekChildren()`` (see below) will efficiently iterate through this set which is a Rax tree with key depth 1.
 
 - ``mr_upsert_client_topic_alias()``: Insert or update a topic/alias pair for a client.
@@ -14,9 +18,7 @@ The **mr_rax** public functions so far are:
 
 Note: MQTT shared subscriptions are fully supported.
 
-More functions will be added to, e.g., delete subscriptions.
-
-This project is set up to use as one of the CMake subprojects in a comprehensive MQTT project(s).
+This project is set up for use as one of the CMake subprojects in a comprehensive MQTT project(s).
 
 Some additions and modifications have also been made to Rax itself to support the following functions needed by the above. There is also some experimental code included to avoid repetitive scanning of node data for the next child node index, which may be particularly important for the anticipated wide spans of binary Client IDs.
 
@@ -27,6 +29,20 @@ Some additions and modifications have also been made to Rax itself to support th
 And for easier visualization of binary data, e.g. Client IDs:
 
 - ``raxShowHex()``
+
+The following functions set the added ``isdata`` flag for a key to indicate that the associated value field is scalar data and not an allocated pointer - hence the value should not be freed.
+
+- ``raxInsertWithData()``
+
+- ``raxTryInsertWithData()``
+
+This function removes a key and sets a pointer to the old scalar data.
+
+- ``raxRemoveWithData()``
+
+And this function frees the Rax tree and any allocated pointers associated with its keys, i.e. it does not try to free scalar data.
+
+- ``raxFreeWithData()``
 
 ## The unified topic/client (TC) tree
 
@@ -93,7 +109,7 @@ And subscribe to a ``$SYS`` topic as well, e.g. topic ``$SYS/foo/#``; Client ID 
 
 Rax is a binary character based adaptive radix prefix tree. This means that common prefixes are combined and node sizes vary depending on prefix compression, node compression and the number of children. A key is a sequence of characters that can be "inserted" and/or "found". Optionally a key can have associated data. The keys are maintained in lexicographic order within the tree's hierarchy.
 
-There is much more information in the Rax README and ``rax.h``.
+There is much more information in the Rax README and ``rax.c``.
 
 ### Overlaying the TC tree on Rax
 
@@ -124,31 +140,29 @@ When ``@/foo/bar<0xef><0x0000000000000002>`` is also inserted, we get:
 The additions to Rax include ``raxShowHex()``. When the 9 subscriptions above are applied to the TC tree they result in the following ASCII art of the Rax internal structures, illustrating prefix compression, node compression and adaptive node sizes:
 ```
 [$@]
- `-($) "/$SYS"=0x1 -> "/foo"=0x1 -> "/#"=0x1 -> [0xfe]=0x1 -> "0x0000000000000001"=0x1 -> []
- `-(@) [/]=0x8 -> [+f]
-                   `-(+) "/bar"=0x1 -> [0xfe]=0x1 -> "0x0000000000000006"=0x1 -> []
-                   `-(f) "oo" -> [/]=0x7 -> [#b]
-                                             `-(#) [0xfe]=0x2 -> "0x00000000000000"=0x2 -> [0x0107]
-                                                                                            `-(.) []
-                                                                                            `-(.) []
-                                             `-(b) "ar" -> [0x2ffeff]=0x5
-                                                            `-(/) [0x1f] -> [0xfe]=0x1 -> "0x0000000000000003"=0x1 -> []
-                                                            `-(.) "0x00000000000000"=0x2 -> [0x0102]
-                                                                                             `-(.) []
-                                                                                             `-(.) []
-                                                            `-(.) "baz"=0x2 -> "0x00000000000000"=0x2 -> [0x0405]
-                                                                                                          `-(.) []
-                                                                                                          `-(.) []
+ `-($) "/$SYS" -> "/foo" -> "/#" -> [0xfe] -> "0x0000000000000001" -> []
+ `-(@) [/] -> [+f]
+               `-(+) "/bar" -> [0xfe] -> "0x0000000000000006" -> []
+               `-(f) "oo" -> [/] -> [#b]
+                                     `-(#) [0xfe] -> "0x00000000000000" -> [0x0107]
+                                                                            `-(.) []
+                                                                            `-(.) []
+                                     `-(b) "ar" -> [0x2ffeff]
+                                                    `-(/) [0x1f] -> [0xfe] -> "0x0000000000000003" -> []
+                                                    `-(.) "0x00000000000000" -> [0x0102]
+                                                                                 `-(.) []
+                                                                                 `-(.) []
+                                                    `-(.) "baz" -> "0x00000000000000" -> [0x0405]
+                                                                                          `-(.) []
+                                                                                          `-(.) []
 ```
-A full explanation of the notation above is in the Rax README and ``rax.h``; a tricky part is that the first character of a key is stored in the node pointing to the key, not in the key itself.
-
-Each key except for leaf Client IDs has an integer value associated with it which is the count of Client IDs in its subtree, e.g. the ``0x8`` associated with key ``@``. This is currently useful in randomly picking a Client ID when matching a shared subscription and in pruning the tree as subscriptions are deleted. The Rax tree itself maintains total counts of all keys and nodes.
+A full explanation of the notation above is in the Rax README and ``rax.c``; a tricky part is that the first character of a key is stored in the node pointing to the key, not in the key itself.
 
 ### The TC tree search strategy
 
 This is the strategy used by ``mr_get_subscribed_clients()`` to extract a dedup'd list of subscribed Client IDs when provided with a valid publish topic (no wildcards).
 
-The strategy is repeatedly executed in 2 phases:
+The strategy is repeatedly executed in 2 phases until done:
 
 1) a subscribe topic (may have wildcards) is found in the TC tree that matches the publish topic; then
 
@@ -178,11 +192,11 @@ Then 3 searches are performed in order at each level of the TC tree except for t
 
 When we have finished all subtrees, including those necessary to handle ``+`` wildcards, we are done.
 
-Phase 2 of the strategy, gathering Client IDs, proceeds in 2 steps:
+Phase 2 of the strategy, gathering Client IDs for a search predicate, proceeds in 2 steps:
 
-1) Append the Client Mark (``0xef``) to the current key and search for the key. If found, iterate over its Client ID children (the Client IDs) inserting each into the result set.
+1) Append the Client Mark (``0xef``) to the current key and search for the key. If found, iterate over its Client ID children inserting each Client ID into the result set.
 
-2) Append the Shared Mark (``0xff``) to the current key and search for it. If found iterate over the share name children, e.g. ``baz``, and, for each share name, get its Client ID children selecting one at random for insertion into the result set.
+2) Append the Shared Mark (``0xff``) to the current key and search for it. If found iterate over the share name children, e.g. ``baz``, and, for each share name, get its Client ID children, select one at random and insert it into the result set.
 
 Running ``mr_get_subscribed_clients()`` using publish topic ``foo/bar`` against our TC tree above results in Client IDs: `` 1 2 4 6 7``. Repeatedly running it will result in `` 1 2 5 6 7`` about half the time – this is due to the share ``baz`` being shared by clients ``4`` and ``5`` whereas the other subscriptions are normal.
 
@@ -192,11 +206,13 @@ Note also that Client ID ``1`` only appears once although it is present in 2 mat
 
 This tree contains a subscriptions inversion for each client, topic aliases for clients, and will contain other client-based information.
 
+The client tree uses the external format for both subscribe and publish topics.
+
 Topic aliases are distinct for incoming ones, which are set by the client, and outgoing ones set by the server. Hence there are 2 pairs (handling inversion) of synchronized subtrees: ``iabt`` / ``itba`` and ``oabt`` / ``otba`` for each client, providing alias-by-topic and topic-by-alias respectively for incoming (client) and outgoing (server) aliases.
 
 The topic alias leaf values are used to store the alias and the topic pointer, since we do not need to search on them; this usage simplifies the updating of aliases and also reduces tree depth.
 
-Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHex()`` yields the following depiction of our 7 clients, their 9 subscriptions and the 2 aliases in the client tree – the short hex values in the leaf nodes are aliases and the longer ones are pointers to topic strings:
+Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHex()`` yields the following depiction of our 7 clients, their 9 subscriptions and the 2 aliases in the client tree – the short hex values after the ``=`` in the leaf nodes are aliases and the longer ones are pointers to topic strings:
 
 ```
 "0x00000000000000" -> [0x01020304050607]

@@ -16,6 +16,7 @@ static uint8_t shared_mark = 0xFF;
 static uint8_t empty_tokenv[] = {0x1f, 0};
 
 int mr_insert_subscription(rax* tcrax, rax* crax, const char* subtopic, const uint64_t client);
+int mr_remove_subscription(rax* tcrax, rax* crax, const char* subtopic, const uint64_t client);
 int mr_get_subscribed_clients(rax* tcrax, rax* srax, const char* pubtopic);
 
 int mr_upsert_client_topic_alias(

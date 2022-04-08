@@ -85,21 +85,25 @@ int topic_fun(void) {
     // char pubtopic[] = "s";
     char pubtopic[] = "foo/bar";
 
-    mr_upsert_client_topic_alias(crax, 1, true, pubtopic, 1);
-    mr_upsert_client_topic_alias(crax, 1, true, pubtopic2, 2);
-    mr_upsert_client_topic_alias(crax, 1, true, pubtopic, 2);
+    char subtopic2[] = "$SYS/foo/#";int client2 = 1;
+    //char subtopic2[] = "foo/bar/"; int client2 = 3;
+    //mr_remove_subscription(tcrax, crax, subtopic2, client2);
+
+    // mr_upsert_client_topic_alias(crax, 1, true, pubtopic, 1);
+    // mr_upsert_client_topic_alias(crax, 1, true, pubtopic2, 2);
+    // mr_upsert_client_topic_alias(crax, 1, true, pubtopic, 2);
     uint8_t alias;
     int rc = mr_get_alias_by_topic(crax, 1, true, pubtopic, &alias);
     printf("mr_get_alias_by_topic:: rc: %d; alias: %u\n", rc, alias);
     char* aliastopic;
     rc = mr_get_topic_by_alias(crax, 1, true, 2, &aliastopic);
     printf("mr_get_topic_by_alias:: rc: %d; aliastopic: %s\n", rc, aliastopic);
-    // mr_upsert_client_topic_alias(crax, 1, pubtopic3, 8, false);
-    // mr_upsert_client_topic_alias(crax, 1, pubtopic3, 8, true);
-    // mr_upsert_client_topic_alias(crax, 1, pubtopic2, 9, true);
+    mr_upsert_client_topic_alias(crax, 1, true, pubtopic2, 8);
+    mr_upsert_client_topic_alias(crax, 1, false, pubtopic3, 8);
+    // mr_upsert_client_topic_alias(crax, 1, true, pubtopic2, 9);
 
-    // raxShowHex(tcrax);
-    // raxShowHex(crax);
+    raxShowHex(tcrax);
+    raxShowHex(crax);
 
     printf("get matching clients for '%s'\n", pubtopic);
 
@@ -137,6 +141,7 @@ int topic_fun(void) {
 
     // raxStop(&tciter);
 
+    raxFreeWithData(crax);
     raxFree(tcrax);
     return 0;
 }
