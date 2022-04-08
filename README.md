@@ -6,13 +6,13 @@ The **mr_rax** public functions so far are:
 
 - ``mr_remove_subscription()``: Remove an MQTT subscription topic for a Client ID trimming the tree as needed.
 
-- ``mr_remove_client_subscriptions``: Remove all subscriptions for a client. [not yet implmented]
+- ``mr_remove_client_subscriptions``: Remove all subscriptions for a client. [not yet implemented]
 
 - ``mr_get_subscribed_clients()``: For a published topic return the dedup'd set of Client IDs from all matching subscriptions. ``raxSeekChildren()`` (see below) will efficiently iterate through this set which is a Rax tree with key depth 1.
 
 - ``mr_upsert_client_topic_alias()``: Insert or update a topic/alias pair for a client.
 
-- ``mr_remove_client_aliases()``: Remove all aliases for a client. [not yet implmented]
+- ``mr_remove_client_aliases()``: Remove all aliases for a client. [not yet implemented]
 
 - ``mr_get_alias_by_topic()``: Get the alias for a topic and client, if any.
 
