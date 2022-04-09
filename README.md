@@ -38,17 +38,17 @@ And for easier visualization of binary data, e.g. Client IDs:
 
 The following functions set the added ``isdata`` flag for a key to indicate that the associated value field is scalar data and not an allocated pointer - hence the value should not be freed.
 
-- ``raxInsertWithData()``
+- ``raxInsertWithScalar()``
 
-- ``raxTryInsertWithData()``
+- ``raxTryInsertWithScalar()``
 
 This function removes a key and sets a pointer to the old scalar data.
 
-- ``raxRemoveWithData()``
+- ``raxRemoveWithScalar()``
 
 And this function frees the Rax tree and any allocated pointers associated with its keys, i.e. it does not try to free scalar data.
 
-- ``raxFreeWithData()``
+- ``raxFreeWithScalar()``
 
 ## The unified topic/client (TC) tree
 
