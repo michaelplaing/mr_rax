@@ -86,8 +86,14 @@ int topic_fun(void) {
     char pubtopic[] = "foo/bar";
 
     char subtopic2[] = "$SYS/foo/#";int client2 = 1;
+    // mr_remove_subscription(tcrax, crax, subtopic2, client2);
+    // char subtopic3[] = "foo/#";int client3 = 1;
+    // mr_remove_subscription(tcrax, crax, subtopic3, client3);
+    // char subtopic4[] = "foo/bar";int client4 = 1;
+    // mr_remove_subscription(tcrax, crax, subtopic4, client4);
     //char subtopic2[] = "foo/bar/"; int client2 = 3;
     //mr_remove_subscription(tcrax, crax, subtopic2, client2);
+    mr_remove_client_subscriptions(tcrax, crax, client2);
 
     // mr_upsert_client_topic_alias(crax, 1, true, pubtopic, 1);
     // mr_upsert_client_topic_alias(crax, 1, true, pubtopic2, 2);
@@ -141,7 +147,7 @@ int topic_fun(void) {
 
     // raxStop(&tciter);
 
-    raxFreeWithData(crax);
+    raxFreeWithScalars(crax);
     raxFree(tcrax);
     return 0;
 }

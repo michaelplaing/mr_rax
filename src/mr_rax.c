@@ -152,15 +152,17 @@ static int mr_trim_topic_tree(rax* tcrax, raxIterator* piter, const char* topic)
     char topic2[tlen + 1];
     strlcpy(topic2, topic, tlen + 1);
     char* pc = topic2 + tlen;
+    int count = 0;
 
     while(pc) {
         *pc = '\0';
         size_t len = pc - topic2;
-        if (!mr_trim_topic(tcrax, piter, topic2, len)) return 0; // done
+        if (!mr_trim_topic(tcrax, piter, topic2, len)) return count; // done
+        count++;
         pc = strrchr(topic2, '/');
     }
 
-    return 1;
+    return count;
 }
 
 int mr_remove_subscription(rax* tcrax, rax* crax, const char* subtopic, const uint64_t client) {
@@ -217,6 +219,31 @@ int mr_remove_subscription(rax* tcrax, rax* crax, const char* subtopic, const ui
         }
     }
 
+    return 0;
+}
+
+int mr_remove_client_subscriptions(rax* tcrax, rax* crax, const uint64_t client) {
+    rax* srax = raxNew();
+    raxIterator iter;
+    raxStart(&iter, crax);
+    uint8_t clientsubsv[8 + 4];
+    for (int i = 0; i < 8; i++) clientsubsv[i] = client >> ((7 - i) * 8) & 0xff;
+    memcpy(clientsubsv + 8, "subs", 4);
+    raxSeekChildren(&iter, clientsubsv, 8 + 4);
+    while(raxNextChild(&iter)) raxInsert(srax, iter.key, iter.key_len, NULL, NULL);
+    raxStart(&iter, srax);
+    raxSeekSet(&iter);
+
+    while(raxNextInSet(&iter)) {
+        size_t stlen = iter.key_len - (8 + 4);
+        char subtopic[stlen + 1];
+        memcpy(subtopic, iter.key + 8 + 4, stlen);
+        subtopic[stlen] = '\0';
+        mr_remove_subscription(tcrax, crax, subtopic, client);
+    }
+
+    raxStop(&iter);
+    raxFree(srax);
     return 0;
 }
 
@@ -341,14 +368,14 @@ int mr_upsert_client_topic_alias(
     if (raxRemove(crax, (uint8_t*)topicbyalias, 8 + 4 + 1, (void**)&pubtopic2)) {
         size_t ptlen2 = strlen(pubtopic2);
         memcpy(aliasbytopic + 8 + 4, pubtopic2, ptlen2);
-        raxRemoveWithData(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen2, NULL);
+        raxRemoveWithScalar(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen2, NULL);
         rax_free(pubtopic2);
         memcpy(aliasbytopic + 8 + 4, pubtopic, ptlen); // restore
     }
 
     // clear aliasbytopic & inversion if necessary
     uintptr_t old_bigalias;
-    if (raxRemoveWithData(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen, &old_bigalias)) {
+    if (raxRemoveWithScalar(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen, &old_bigalias)) {
         uint8_t old_alias = old_bigalias & 0xff;
         memcpy(topicbyalias + 8 + 4, &old_alias, 1);
         char* pubtopic3;
@@ -360,7 +387,7 @@ int mr_upsert_client_topic_alias(
     // insert inversion pair
     char* pubtopic4 = strdup(pubtopic); // free on removal
     raxInsert(crax, (uint8_t*)topicbyalias, 8 + 4 + 1, pubtopic4, NULL);
-    raxInsertWithData(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen, alias, NULL);
+    raxInsertWithScalar(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen, alias, NULL);
 
     return 0;
 }
