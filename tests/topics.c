@@ -107,6 +107,7 @@ int topic_fun(void) {
     mr_upsert_client_topic_alias(crax, 1, true, pubtopic2, 8);
     mr_upsert_client_topic_alias(crax, 1, false, pubtopic3, 8);
     // mr_upsert_client_topic_alias(crax, 1, true, pubtopic2, 9);
+    mr_remove_client_topic_aliases(crax, 1);
 
     raxShowHex(tcrax);
     raxShowHex(crax);
@@ -147,7 +148,7 @@ int topic_fun(void) {
 
     // raxStop(&tciter);
 
-    raxFreeWithScalars(crax);
+    raxFreeWithFlag(crax);
     raxFree(tcrax);
     return 0;
 }

@@ -1026,7 +1026,7 @@ raxNode *raxRemoveChild(raxNode *parent, raxNode *child) {
 
 /* Remove the specified item. Returns 1 if the item was found and
  * deleted, 0 otherwise. */
-int raxRemove(rax *rax, unsigned char *s, size_t len, void **old) {
+int raxRemoveGeneric(rax *rax, unsigned char *s, size_t len, void **old, int* pisscalar) {
     raxNode *h;
     raxStack ts;
 
@@ -1038,7 +1038,12 @@ int raxRemove(rax *rax, unsigned char *s, size_t len, void **old) {
         raxStackFree(&ts);
         return 0;
     }
-    if (old) *old = raxGetData(h);
+
+    if (old) {
+        *old = raxGetData(h);
+        if (pisscalar) *pisscalar = h->isscalar;
+    }
+
     h->iskey = 0;
     rax->numele--;
 
@@ -1223,6 +1228,10 @@ int raxRemove(rax *rax, unsigned char *s, size_t len, void **old) {
     }
     raxStackFree(&ts);
     return 1;
+}
+
+int raxRemove(rax *rax, unsigned char *s, size_t len, void **old) {
+    return raxRemoveGeneric(rax, s, len, old, NULL);
 }
 
 /* This is the core of raxFree(): performs a depth-first scan of the
@@ -2141,18 +2150,22 @@ void raxShowHex(rax* rax) {
 }
 
 // just like their plain counterparts above but set the raxNode isscalar flag for raxFreeWithCallback
-int raxInsertWithScalar(rax *rax, unsigned char *s, size_t len, uintptr_t data, uintptr_t* old) {
+int raxInsertScalar(rax *rax, unsigned char *s, size_t len, uintptr_t data, uintptr_t* old) {
     return raxGenericInsert(rax,s,len,(void*)data,(void**)old,1,1);
 }
 
-int raxTryInsertWithScalar(rax *rax, unsigned char *s, size_t len, uintptr_t data, uintptr_t* old) {
+int raxTryInsertScalar(rax *rax, unsigned char *s, size_t len, uintptr_t data, uintptr_t* old) {
     return raxGenericInsert(rax,s,len,(void*)data,(void**)old,0, 1);
 }
 
-int raxRemoveWithScalar(rax *rax, unsigned char *s, size_t len, uintptr_t* old) {
+int raxRemoveScalar(rax *rax, unsigned char *s, size_t len, uintptr_t* old) {
     return raxRemove(rax, s, len, (void**)old);
 }
 
-void raxFreeWithScalars(rax *rax) {
+int raxRemoveWithFlag(rax *rax, unsigned char *s, size_t len, void** old, int* pisscalar) {
+    return raxRemoveGeneric(rax, s, len, old, pisscalar);
+}
+
+void raxFreeWithFlag(rax *rax) {
     raxFreeWithCallback(rax, rax_free);
 }

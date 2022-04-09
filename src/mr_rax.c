@@ -226,10 +226,10 @@ int mr_remove_client_subscriptions(rax* tcrax, rax* crax, const uint64_t client)
     rax* srax = raxNew();
     raxIterator iter;
     raxStart(&iter, crax);
-    uint8_t clientsubsv[8 + 4];
-    for (int i = 0; i < 8; i++) clientsubsv[i] = client >> ((7 - i) * 8) & 0xff;
-    memcpy(clientsubsv + 8, "subs", 4);
-    raxSeekChildren(&iter, clientsubsv, 8 + 4);
+    uint8_t clientplusv[8 + 4];
+    for (int i = 0; i < 8; i++) clientplusv[i] = client >> ((7 - i) * 8) & 0xff;
+    memcpy(clientplusv + 8, "subs", 4);
+    raxSeekChildren(&iter, clientplusv, 8 + 4);
     while(raxNextChild(&iter)) raxInsert(srax, iter.key, iter.key_len, NULL, NULL);
     raxStart(&iter, srax);
     raxSeekSet(&iter);
@@ -368,14 +368,14 @@ int mr_upsert_client_topic_alias(
     if (raxRemove(crax, (uint8_t*)topicbyalias, 8 + 4 + 1, (void**)&pubtopic2)) {
         size_t ptlen2 = strlen(pubtopic2);
         memcpy(aliasbytopic + 8 + 4, pubtopic2, ptlen2);
-        raxRemoveWithScalar(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen2, NULL);
+        raxRemoveScalar(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen2, NULL);
         rax_free(pubtopic2);
         memcpy(aliasbytopic + 8 + 4, pubtopic, ptlen); // restore
     }
 
     // clear aliasbytopic & inversion if necessary
     uintptr_t old_bigalias;
-    if (raxRemoveWithScalar(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen, &old_bigalias)) {
+    if (raxRemoveScalar(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen, &old_bigalias)) {
         uint8_t old_alias = old_bigalias & 0xff;
         memcpy(topicbyalias + 8 + 4, &old_alias, 1);
         char* pubtopic3;
@@ -387,7 +387,38 @@ int mr_upsert_client_topic_alias(
     // insert inversion pair
     char* pubtopic4 = strdup(pubtopic); // free on removal
     raxInsert(crax, (uint8_t*)topicbyalias, 8 + 4 + 1, pubtopic4, NULL);
-    raxInsertWithScalar(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen, alias, NULL);
+    raxInsertScalar(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen, alias, NULL);
+
+    return 0;
+}
+
+int mr_remove_client_topic_aliases(rax* crax, const uint64_t client) {
+    uint8_t clientplusv[8 + 4];
+    for (int i = 0; i < 8; i++) clientplusv[i] = client >> ((7 - i) * 8) & 0xff;
+    char* prefixv[] = {"iabt", "itba", "oabt", "otba"};
+    rax* srax = raxNew();
+    raxIterator citer;
+
+    for (int i = 0; i < 4; i++) {
+        memcpy(clientplusv + 8, prefixv[i], 4);
+        raxStart(&citer, crax);
+        raxSeekChildren(&citer, clientplusv, 8 + 4);
+        while(raxNextChild(&citer)) raxInsert(srax, citer.key, citer.key_len, NULL, NULL);
+    }
+
+    raxIterator siter;
+    raxStart(&siter, srax);
+    raxSeekSet(&siter);
+
+    while(raxNextInSet(&siter)) {
+        char* todelete;
+        int isscalar;
+        raxRemoveWithFlag(crax, siter.key, siter.key_len, (void**)&todelete, &isscalar);
+        if (!isscalar) rax_free(todelete);
+        raxRemove(crax, siter.key, 8 + 4, NULL);
+        raxSeekChildren(&citer, siter.key, 8);
+        if (!raxNextChild(&citer)) raxRemove(crax, siter.key, 8, NULL);
+    }
 
     return 0;
 }

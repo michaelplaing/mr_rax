@@ -12,7 +12,7 @@ The **mr_rax** public functions so far are:
 
 - ``mr_upsert_client_topic_alias()``: Insert or update a topic/alias pair for a client.
 
-- ``mr_remove_client_aliases()``: Remove all aliases for a client. [not yet implemented]
+- ``mr_remove_client_topic_aliases()``: Remove all aliases for a client. [not yet implemented]
 
 - ``mr_get_alias_by_topic()``: Get the alias for a topic and client, if any.
 
@@ -28,7 +28,7 @@ Some additions and modifications have also been made to Rax itself to support th
 
 - ``raxNextChild()``: Return the next immediate child key of the key sought above.
 
-- ``raxSeekSet()``:  Seek the beginning of a set (a Rax tree with key depth 1), e.g. a set of Client IDs.
+- ``raxSeekSet()``:  Seek the beginning of a sorted set (a Rax tree with key depth 1), e.g. a set of Client IDs.
 
 - ``raxNextInSet()``: Return the next key in the set sought above.
 

@@ -224,9 +224,10 @@ int raxNextChild(raxIterator *it);
 int raxNextInSet(raxIterator* it);
 int raxSeekSet(raxIterator* it);
 void raxShowHex(rax *rax);
-int raxInsertWithScalar(rax *rax, unsigned char *s, size_t len, uintptr_t data, uintptr_t* old);
-int raxTryInsertWithScalar(rax *rax, unsigned char *s, size_t len, uintptr_t data, uintptr_t* old);
-int raxRemoveWithScalar(rax *rax, unsigned char *s, size_t len, uintptr_t* old);
-void raxFreeWithScalars(rax *rax);
+int raxInsertScalar(rax *rax, unsigned char *s, size_t len, uintptr_t data, uintptr_t* old);
+int raxTryInsertScalar(rax *rax, unsigned char *s, size_t len, uintptr_t data, uintptr_t* old);
+int raxRemoveScalar(rax *rax, unsigned char *s, size_t len, uintptr_t* old);
+int raxRemoveWithFlag(rax *rax, unsigned char *s, size_t len, void** old, int* pisscalar);
+void raxFreeWithFlag(rax *rax);
 
 #endif
