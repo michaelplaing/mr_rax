@@ -12,7 +12,7 @@ The **mr_rax** public functions so far are:
 
 - ``mr_upsert_client_topic_alias()``: Insert or update a topic/alias pair for a client.
 
-- ``mr_remove_client_topic_aliases()``: Remove all aliases for a client. [not yet implemented]
+- ``mr_remove_client_topic_aliases()``: Remove all aliases for a client.
 
 - ``mr_get_alias_by_topic()``: Get the alias for a topic and client, if any.
 
