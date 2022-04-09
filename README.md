@@ -8,7 +8,7 @@ The **mr_rax** public functions so far are:
 
 - ``mr_remove_client_subscriptions()``: Remove all subscriptions for a client.
 
-- ``mr_get_subscribed_clients()``: For a published topic return the dedup'd set of Client IDs from all matching subscriptions. ``raxSeekChildren()`` (see below) will efficiently iterate through this set which is a Rax tree with key depth 1.
+- ``mr_get_subscribed_clients()``: For a published topic return the dedup'd sorted set of Client IDs from all matching subscriptions. ``raxSeekSet()`` (see below) will efficiently iterate through this set which is implmented as a Rax tree with key depth 1.
 
 - ``mr_upsert_client_topic_alias()``: Insert or update a topic/alias pair for a client.
 
@@ -45,6 +45,10 @@ The following functions set the added ``isscalar`` flag for a key to indicate th
 This function removes a key and sets a pointer to the old scalar data.
 
 - ``raxRemoveWithScalar()``
+
+This one removes a key then sets a pointer to the old value and a pointer to the ``isscalar`` flag of the old value.
+
+- ``raxRemoveWithFlag()``
 
 And this function frees the Rax tree and any allocated pointers associated with its keys, i.e. it does not try to free scalar data.
 
