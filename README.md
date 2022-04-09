@@ -6,7 +6,7 @@ The **mr_rax** public functions so far are:
 
 - ``mr_remove_subscription()``: Remove an MQTT subscription topic for a Client ID trimming the tree as needed.
 
-- ``mr_remove_client_subscriptions``: Remove all subscriptions for a client.
+- ``mr_remove_client_subscriptions()``: Remove all subscriptions for a client.
 
 - ``mr_get_subscribed_clients()``: For a published topic return the dedup'd set of Client IDs from all matching subscriptions. ``raxSeekChildren()`` (see below) will efficiently iterate through this set which is a Rax tree with key depth 1.
 
