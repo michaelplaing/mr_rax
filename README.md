@@ -36,7 +36,7 @@ And for easier visualization of binary data, e.g. Client IDs:
 
 - ``raxShowHex()``
 
-The following functions set the added ``isdata`` flag for a key to indicate that the associated value field is scalar data and not an allocated pointer - hence the value should not be freed.
+The following functions set the added ``isscalar`` flag for a key to indicate that the associated value field is scalar data and not an allocated pointer - hence the value should not be freed.
 
 - ``raxInsertWithScalar()``
 
