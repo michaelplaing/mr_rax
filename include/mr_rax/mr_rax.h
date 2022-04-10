@@ -27,5 +27,6 @@ int mr_upsert_client_topic_alias(
 int mr_remove_client_topic_aliases(rax* crax, const uint64_t client);
 int mr_get_alias_by_topic(rax* crax, const uint64_t client, const bool isincoming, const char* pubtopic, uint8_t* palias);
 int mr_get_topic_by_alias(rax* crax, const uint64_t client, const bool isincoming, const uint8_t alias, char** ppubtopic);
+int mr_remove_client_data(rax* tcrax, rax* crax, uint64_t client);
 
 #endif // MR_RAX_H

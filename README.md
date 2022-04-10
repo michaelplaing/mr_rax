@@ -1,6 +1,6 @@
-## **mr_rax**: Functions to handle MQTT data requirements using Rax
+## **mr_rax**: Service MQTT data requirements using Rax
 
-The **mr_rax** public functions so far are:
+The **mr_rax** public functions are:
 
 - ``mr_insert_subscription()``: Insert an MQTT subscription topic (with optional wildcards) and a Client ID.
 
@@ -8,7 +8,7 @@ The **mr_rax** public functions so far are:
 
 - ``mr_remove_client_subscriptions()``: Remove all subscriptions for a client.
 
-- ``mr_get_subscribed_clients()``: For a published topic return the dedup'd sorted set of Client IDs from all matching subscriptions. ``raxSeekSet()`` (see below) will efficiently iterate through this set which is implmented as a Rax tree with key depth 1.
+- ``mr_get_subscribed_clients()``: For a published topic return the dedup'd sorted set of Client IDs from all matching subscriptions. ``raxSeekSet()/raxNextInSet()`` (see below) will efficiently iterate through this set. MQTT shared subscriptions are fully supported.
 
 - ``mr_upsert_client_topic_alias()``: Insert or update a topic/alias pair for a client.
 
@@ -18,41 +18,9 @@ The **mr_rax** public functions so far are:
 
 - ``mr_get_topic_by_alias()``: Get the topic for an alias and client, if any.
 
-Note: MQTT shared subscriptions are fully supported.
+- ``mr_remove_client_data()``: Remove all subscriptions and other data for a client.
 
 This project is set up for use as one of the CMake subprojects in a comprehensive MQTT project(s).
-
-Some additions and modifications have also been made to Rax itself to support the following functions needed by the above. There is also some experimental code included to avoid repetitive scanning of node data for the next child node index, which may be particularly important for the anticipated wide spans of binary Client IDs.
-
-- ``raxSeekChildren()``: Seek a key in order to get its immediate child keys.
-
-- ``raxNextChild()``: Return the next immediate child key of the key sought above.
-
-- ``raxSeekSet()``:  Seek the beginning of a sorted set (a Rax tree with key depth 1), e.g. a set of Client IDs.
-
-- ``raxNextInSet()``: Return the next key in the set sought above.
-
-And for easier visualization of binary data, e.g. Client IDs:
-
-- ``raxShowHex()``
-
-The following functions set the added ``isscalar`` flag for a key to indicate that the associated value field is scalar data and not an allocated pointer - hence the value should not be freed.
-
-- ``raxInsertWithScalar()``
-
-- ``raxTryInsertWithScalar()``
-
-This function removes a key and sets a pointer to the old scalar data.
-
-- ``raxRemoveWithScalar()``
-
-This one removes a key then sets a pointer to the old value and a pointer to the ``isscalar`` flag of the old value.
-
-- ``raxRemoveWithFlag()``
-
-And this function frees the Rax tree and any allocated pointers associated with its keys, i.e. it does not try to free scalar data.
-
-- ``raxFreeWithScalar()``
 
 ## The unified topic/client (TC) tree
 
@@ -117,9 +85,47 @@ And subscribe to a ``$SYS`` topic as well, e.g. topic ``$SYS/foo/#``; Client ID 
 
 ### The Rax tree implementation
 
-Rax is a binary character based adaptive radix prefix tree. This means that common prefixes are combined and node sizes vary depending on prefix compression, node compression and the number of children. A key is a sequence of characters that can be "inserted" and/or "found". Optionally a key can have associated data. The keys are maintained in lexicographic order within the tree's hierarchy.
+Rax is a binary character based adaptive radix prefix tree. This means that common prefixes are combined and node sizes vary depending on prefix compression, node compression and the number of children (radix), which can be 0 to 256 (hence adaptive). A key is a sequence of characters that can be "inserted" and/or "found". Optionally a key can have associated data, a pointer or scalar. The keys are maintained in lexicographic order within the tree's hierarchy.
 
 There is much more information in the Rax README and ``rax.c``.
+
+Some additions and modifications have been made to Rax including the following added functions needed by the ``mr_*()`` functions above. There is some experimental code to avoid repetitive scanning of node data for the next child node index, which is particularly important for scanning wide spans of binary Client IDs.
+
+- ``raxSeekChildren()``: Seek a key in order to get its immediate child keys.
+
+- ``raxNextChild()``: Return the next immediate child key of the key sought above.
+
+- ``raxSeekSet()``:  Seek the beginning of a sorted set (a Rax tree with key depth 1), e.g. a set of Client IDs.
+
+- ``raxNextInSet()``: Return the next key in the set sought above.
+
+And for easier visualization of binary data, e.g. Client IDs:
+
+- ``raxShowHex()``
+
+The following functions set the added ``isscalar`` flag for a key to indicate that the associated value field is scalar data and not an allocated pointer - hence the value should not be freed.
+
+- ``raxInsertScalar()``
+
+- ``raxTryInsertScalar()``
+
+This function removes a key and sets a pointer to the old scalar data.
+
+- ``raxRemoveScalar()``
+
+This one removes a key then sets a pointer to the old value and a pointer to the ``isscalar`` flag of the old value.
+
+- ``raxRemoveWithFlag()``
+
+This function frees the Rax tree and any allocated pointers associated with its keys; i.e. it does not try to free scalar data.
+
+- ``raxFreeWithScalar()``
+
+These functions remove all the keys in a subtree.
+
+- ``raxFreeSubtree()``
+
+- ``raxFreeSubtreeWithCallback()``
 
 ### Overlaying the TC tree on Rax
 
@@ -220,7 +226,7 @@ The client tree uses the external format for both subscribe and publish topics.
 
 Topic aliases are distinct for incoming ones, which are set by the client, and outgoing ones set by the server. Hence there are 2 pairs (handling inversion) of synchronized subtrees: ``iabt`` / ``itba`` and ``oabt`` / ``otba`` for each client, providing alias-by-topic and topic-by-alias respectively for incoming (client) and outgoing (server) aliases.
 
-The topic alias leaf values are used to store the alias and the topic pointer, since we do not need to search on them; this usage simplifies the updating of aliases and also reduces tree depth.
+The topic alias leaf values are used to store the alias scalar and the topic pointer, since we do not need to search on them; this usage simplifies the updating of aliases and reduces tree depth.
 
 Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHex()`` yields the following depiction of our 7 clients, their 9 subscriptions and the 2 aliases in the client tree – the short hex values after the ``=`` in the leaf nodes are aliases and the longer ones are pointers to topic strings:
 

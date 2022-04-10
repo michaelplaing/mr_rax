@@ -93,7 +93,7 @@ int topic_fun(void) {
     // mr_remove_subscription(tcrax, crax, subtopic4, client4);
     //char subtopic2[] = "foo/bar/"; int client2 = 3;
     //mr_remove_subscription(tcrax, crax, subtopic2, client2);
-    mr_remove_client_subscriptions(tcrax, crax, client2);
+    //mr_remove_client_subscriptions(tcrax, crax, client2);
 
     // mr_upsert_client_topic_alias(crax, 1, true, pubtopic, 1);
     // mr_upsert_client_topic_alias(crax, 1, true, pubtopic2, 2);
@@ -107,7 +107,8 @@ int topic_fun(void) {
     mr_upsert_client_topic_alias(crax, 1, true, pubtopic2, 8);
     mr_upsert_client_topic_alias(crax, 1, false, pubtopic3, 8);
     // mr_upsert_client_topic_alias(crax, 1, true, pubtopic2, 9);
-    mr_remove_client_topic_aliases(crax, 1);
+    //mr_remove_client_topic_aliases(crax, 1);
+    mr_remove_client_data(tcrax, crax, 1);
 
     raxShowHex(tcrax);
     raxShowHex(crax);

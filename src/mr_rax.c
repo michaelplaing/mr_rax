@@ -396,28 +396,10 @@ int mr_remove_client_topic_aliases(rax* crax, const uint64_t client) {
     uint8_t clientplusv[8 + 4];
     for (int i = 0; i < 8; i++) clientplusv[i] = client >> ((7 - i) * 8) & 0xff;
     char* prefixv[] = {"iabt", "itba", "oabt", "otba"};
-    rax* srax = raxNew();
-    raxIterator citer;
 
     for (int i = 0; i < 4; i++) {
         memcpy(clientplusv + 8, prefixv[i], 4);
-        raxStart(&citer, crax);
-        raxSeekChildren(&citer, clientplusv, 8 + 4);
-        while(raxNextChild(&citer)) raxInsert(srax, citer.key, citer.key_len, NULL, NULL);
-    }
-
-    raxIterator siter;
-    raxStart(&siter, srax);
-    raxSeekSet(&siter);
-
-    while(raxNextInSet(&siter)) {
-        char* todelete;
-        int isscalar;
-        raxRemoveWithFlag(crax, siter.key, siter.key_len, (void**)&todelete, &isscalar);
-        if (!isscalar) rax_free(todelete);
-        raxRemove(crax, siter.key, 8 + 4, NULL);
-        raxSeekChildren(&citer, siter.key, 8);
-        if (!raxNextChild(&citer)) raxRemove(crax, siter.key, 8, NULL);
+        raxFreeSubtreeWithCallback(crax, clientplusv, 8 + 4, rax_free);
     }
 
     return 0;
@@ -447,5 +429,13 @@ int mr_get_topic_by_alias(rax* crax, const uint64_t client, const bool isincomin
     memcpy(topicbyalias + 8 + 4, &alias, 1);
     void* value = raxFind(crax, (uint8_t*)topicbyalias, 8 + 4 + 1);
     *ppubtopic = value == raxNotFound ? NULL : value;
+    return 0;
+}
+
+int mr_remove_client_data(rax* tcrax, rax* crax, uint64_t client) {
+    mr_remove_client_subscriptions(tcrax, crax, client);
+    uint8_t clientv[8];
+    for (int i = 0; i < 8; i++) clientv[i] = client >> ((7 - i) * 8) & 0xff;
+    raxFreeSubtreeWithCallback(crax, clientv, 8, rax_free);
     return 0;
 }

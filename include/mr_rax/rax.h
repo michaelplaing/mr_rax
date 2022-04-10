@@ -219,15 +219,17 @@ void raxSetDebugMsg(int onoff);
 void raxSetData(raxNode *n, void *data, int isscalar);
 
 // mr_rax additions by ml 20220401
-int raxSeekChildren(raxIterator *it, unsigned char *ele, size_t len);
-int raxNextChild(raxIterator *it);
+int raxSeekChildren(raxIterator* it, uint8_t* ele, size_t len);
+int raxNextChild(raxIterator* it);
 int raxNextInSet(raxIterator* it);
 int raxSeekSet(raxIterator* it);
-void raxShowHex(rax *rax);
-int raxInsertScalar(rax *rax, unsigned char *s, size_t len, uintptr_t data, uintptr_t* old);
-int raxTryInsertScalar(rax *rax, unsigned char *s, size_t len, uintptr_t data, uintptr_t* old);
-int raxRemoveScalar(rax *rax, unsigned char *s, size_t len, uintptr_t* old);
-int raxRemoveWithFlag(rax *rax, unsigned char *s, size_t len, void** old, int* pisscalar);
-void raxFreeWithFlag(rax *rax);
+void raxShowHex(rax* rax);
+int raxInsertScalar(rax* rax, uint8_t* s, size_t len, uintptr_t data, uintptr_t* old);
+int raxTryInsertScalar(rax* rax, uint8_t* s, size_t len, uintptr_t data, uintptr_t* old);
+int raxRemoveScalar(rax* rax, uint8_t* s, size_t len, uintptr_t* old);
+int raxRemoveWithFlag(rax* rax, uint8_t* s, size_t len, void** old, int* pisscalar);
+void raxFreeWithFlag(rax* rax);
+int raxFreeSubtreeWithCallback(rax* rax, uint8_t* key, size_t len, void (*free_callback)(void*));
+int raxFreeSubtree(rax* rax, uint8_t* key, size_t len);
 
 #endif

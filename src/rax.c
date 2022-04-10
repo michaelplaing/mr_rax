@@ -1247,8 +1247,12 @@ void raxRecursiveFree(rax *rax, raxNode *n, void (*free_callback)(void*)) {
         cp--;
     }
     debugnode("free depth-first",n);
-    if (free_callback && n->iskey && !n->isnull && !n->isscalar) // ml 20220408
-        free_callback(raxGetData(n));
+
+    if (n->iskey) { // ml 20220408
+        rax->numele--;
+        if (free_callback && !n->isnull && !n->isscalar) free_callback(raxGetData(n));
+    }
+
     rax_free(n);
     rax->numnodes--;
 }
@@ -2053,7 +2057,7 @@ int raxNextInSet(raxIterator* it) {
     return raxNextChild(it);
 }
 
-int raxSeekChildren(raxIterator* it, unsigned char* key, size_t len) {
+int raxSeekChildren(raxIterator* it, uint8_t* key, size_t len) {
     if (!raxSeek(it, "=", key, len)) return 0;
     if (len) it->stop_node = raxStackPeek(&it->stack); // terminate on ascent above starting node
     if (it->flags & RAX_ITER_EOF) return 1;
@@ -2150,22 +2154,42 @@ void raxShowHex(rax* rax) {
 }
 
 // just like their plain counterparts above but set the raxNode isscalar flag for raxFreeWithCallback
-int raxInsertScalar(rax *rax, unsigned char *s, size_t len, uintptr_t data, uintptr_t* old) {
+int raxInsertScalar(rax* rax, uint8_t* s, size_t len, uintptr_t data, uintptr_t* old) {
     return raxGenericInsert(rax,s,len,(void*)data,(void**)old,1,1);
 }
 
-int raxTryInsertScalar(rax *rax, unsigned char *s, size_t len, uintptr_t data, uintptr_t* old) {
+int raxTryInsertScalar(rax* rax, uint8_t* s, size_t len, uintptr_t data, uintptr_t* old) {
     return raxGenericInsert(rax,s,len,(void*)data,(void**)old,0, 1);
 }
 
-int raxRemoveScalar(rax *rax, unsigned char *s, size_t len, uintptr_t* old) {
+int raxRemoveScalar(rax* rax, uint8_t* s, size_t len, uintptr_t* old) {
     return raxRemove(rax, s, len, (void**)old);
 }
 
-int raxRemoveWithFlag(rax *rax, unsigned char *s, size_t len, void** old, int* pisscalar) {
+int raxRemoveWithFlag(rax* rax, uint8_t* s, size_t len, void** old, int* pisscalar) {
     return raxRemoveGeneric(rax, s, len, old, pisscalar);
 }
 
-void raxFreeWithFlag(rax *rax) {
+void raxFreeWithFlag(rax* rax) {
     raxFreeWithCallback(rax, rax_free);
+}
+
+int raxFreeSubtreeWithCallback(rax* rax, uint8_t* key, size_t len, void (*free_callback)(void*)) {
+    raxIterator it;
+    raxStart(&it, rax);
+    if(!raxSeek(&it, "=", key, len)) return 0;
+    int children = it.node->iscompr ? 1 : it.node->size;
+    raxNode** cp = raxNodeFirstChildPtr(it.node);
+    for (int i = 0; i < children; i++, cp++) raxRecursiveFree(rax, *cp, free_callback);
+    it.node->size = 0; // trigger cleanup during removal
+    int isscalar;
+    void* value;
+    raxRemoveWithFlag(rax, key, len, &value, &isscalar);
+    if (free_callback && value && !isscalar) free_callback(value);
+    raxStop(&it);
+    return 1;
+}
+
+int raxFreeSubtree(rax* rax, uint8_t* key, size_t len) {
+    return raxFreeSubtreeWithCallback(rax, key, len, NULL);
 }
