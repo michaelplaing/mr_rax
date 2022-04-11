@@ -129,6 +129,7 @@ int mr_insert_subscription(rax* tcrax, rax* crax, const char* subtopic, const ui
     memcpy((void*)topic2 + tlen2, (void*)clientv, 8);
     raxInsert(tcrax, (uint8_t*)topic2, tlen2 + 8, NULL, NULL); // insert the client
 
+    // invert
     char topic3[8 + 4 + stlen];
     memcpy(topic3, clientv, 8);
     raxTryInsert(crax, (uint8_t*)topic3, 8, NULL, NULL);
@@ -310,7 +311,6 @@ static int mr_probe_subscriptions(rax* tcrax, rax* srax, char* topic, int level,
 
         token = tokenv[level + 1];
         snprintf(topic2, MAX_TOPIC_LEN, "%s/%s", topic, token);
-
         if (raxFind(tcrax, (uint8_t*)topic2, strlen(topic2)) != raxNotFound) {
             if (level == (numtokens - 2)) mr_get_topic_clients(tcrax, srax, (uint8_t*)topic2, strlen(topic2));
         }

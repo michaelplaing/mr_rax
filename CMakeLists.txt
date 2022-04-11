@@ -2,11 +2,10 @@ cmake_minimum_required(VERSION 3.22)
 
 project(
     mr_rax VERSION 0.1.0
-    DESCRIPTION "MQTT5 pub/sub topic matching with wildcards"
+    DESCRIPTION "MQTT5 data requirements functions"
     LANGUAGES C # possibly add CXX for Catch2
 )
 
-# Only do these if this is the main project, and not if it is included through add_subdirectory
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     set(CMAKE_C_STANDARD 23)
     set(CMAKE_C_EXTENSIONS OFF)
