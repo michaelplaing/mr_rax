@@ -340,94 +340,86 @@ int mr_get_subscribed_clients(rax* tcrax, rax* srax, const char* pubtopic) {
 }
 
 int mr_upsert_client_topic_alias(
-    rax* crax, const uint64_t client, const bool isincoming, const char* pubtopic, const uint8_t alias
+    rax* crax, const uint64_t client, const bool isclient, const char* pubtopic, const uint8_t alias
 ) {
     size_t ptlen = strlen(pubtopic);
-    char* abt = isincoming ? "iabt" : "oabt";
-    char* tba = isincoming ? "itba" : "otba";
-    char topicbyalias[8 + 4 + 1]; // <Client ID>"itba"<alias>
-    char aliasbytopic[8 + 4 + ptlen]; // <Client ID>"iabt"<pubtopic>
-    uint8_t clientv[8];
-    for (int i = 0; i < 8; i++) clientv[i] = client >> ((7 - i) * 8) & 0xff;
+    char* source = isclient ? "client" : "server";
+    char topicbyalias[8 + 16 + 1];       // <Client ID>"aliasesclienttba"<alias>
+    char aliasbytopic[8 + 16 + ptlen];   // <Client ID>"aliasesclientatb"<pubtopic>
+    for (int i = 0; i < 8; i++) topicbyalias[i] = client >> ((7 - i) * 8) & 0xff;
 
-    // common
-    memcpy(topicbyalias, clientv, 8);
-    memcpy(aliasbytopic, clientv, 8);
+    // common: 7 + 6 + 3 = 16
     raxTryInsert(crax, (uint8_t*)topicbyalias, 8, NULL, NULL);
-    memcpy(topicbyalias + 8, tba, 4);
-    raxTryInsert(crax, (uint8_t*)topicbyalias, 8 + 4, NULL, NULL);
-    memcpy(aliasbytopic + 8, abt, 4);
-    raxTryInsert(crax, (uint8_t*)aliasbytopic, 8 + 4, NULL, NULL);
+    memcpy(topicbyalias + 8, "aliases", 7);
+    raxTryInsert(crax, (uint8_t*)topicbyalias, 8 + 7, NULL, NULL);
+    memcpy(topicbyalias + 8 + 7, source, 6);
+    raxTryInsert(crax, (uint8_t*)topicbyalias, 8 + 7 + 6, NULL, NULL);
+    memcpy(aliasbytopic, topicbyalias, 8 + 7 + 6);
+
+    memcpy(topicbyalias + 8 + 7 + 6, "tba", 3);
+    raxTryInsert(crax, (uint8_t*)topicbyalias, 8 + 16, NULL, NULL);
+    memcpy(aliasbytopic + 8 + 7 + 6, "abt", 3);
+    raxTryInsert(crax, (uint8_t*)aliasbytopic, 8 + 16, NULL, NULL);
 
     // inversion pair
-    memcpy(topicbyalias + 8 + 4, &alias, 1);
-    memcpy(aliasbytopic + 8 + 4, pubtopic, ptlen);
+    memcpy(topicbyalias + 8 + 16, &alias, 1);
+    memcpy(aliasbytopic + 8 + 16, pubtopic, ptlen);
 
     // clear topicbyalias & inversion if necessary
     char* pubtopic2;
-    if (raxRemove(crax, (uint8_t*)topicbyalias, 8 + 4 + 1, (void**)&pubtopic2)) {
+    if (raxRemove(crax, (uint8_t*)topicbyalias, 8 + 16 + 1, (void**)&pubtopic2)) {
         size_t ptlen2 = strlen(pubtopic2);
-        memcpy(aliasbytopic + 8 + 4, pubtopic2, ptlen2);
-        raxRemoveScalar(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen2, NULL);
+        memcpy(aliasbytopic + 8 + 16, pubtopic2, ptlen2);
+        raxRemoveScalar(crax, (uint8_t*)aliasbytopic, 8 + 16 + ptlen2, NULL);
         rax_free(pubtopic2);
-        memcpy(aliasbytopic + 8 + 4, pubtopic, ptlen); // restore
+        memcpy(aliasbytopic + 8 + 16, pubtopic, ptlen); // restore
     }
 
     // clear aliasbytopic & inversion if necessary
     uintptr_t old_bigalias;
-    if (raxRemoveScalar(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen, &old_bigalias)) {
+    if (raxRemoveScalar(crax, (uint8_t*)aliasbytopic, 8 + 16 + ptlen, &old_bigalias)) {
         uint8_t old_alias = old_bigalias & 0xff;
-        memcpy(topicbyalias + 8 + 4, &old_alias, 1);
+        memcpy(topicbyalias + 8 + 16, &old_alias, 1);
         char* pubtopic3;
-        raxRemove(crax, (uint8_t*)topicbyalias, 8 + 4 + 1, (void**)&pubtopic3);
+        raxRemove(crax, (uint8_t*)topicbyalias, 8 + 16 + 1, (void**)&pubtopic3);
         rax_free(pubtopic3);
-        memcpy(topicbyalias + 8 + 4, &alias, 1); // restore
+        memcpy(topicbyalias + 8 + 16, &alias, 1); // restore
     }
 
     // insert inversion pair
     char* pubtopic4 = strdup(pubtopic); // free on removal
-    raxInsert(crax, (uint8_t*)topicbyalias, 8 + 4 + 1, pubtopic4, NULL);
-    raxInsertScalar(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen, alias, NULL);
+    raxInsert(crax, (uint8_t*)topicbyalias, 8 + 16 + 1, pubtopic4, NULL);
+    raxInsertScalar(crax, (uint8_t*)aliasbytopic, 8 + 16 + ptlen, alias, NULL);
 
     return 0;
 }
 
 int mr_remove_client_topic_aliases(rax* crax, const uint64_t client) {
-    uint8_t clientplusv[8 + 4];
+    uint8_t clientplusv[8 + 7];
     for (int i = 0; i < 8; i++) clientplusv[i] = client >> ((7 - i) * 8) & 0xff;
-    char* prefixv[] = {"iabt", "itba", "oabt", "otba"};
-
-    for (int i = 0; i < 4; i++) {
-        memcpy(clientplusv + 8, prefixv[i], 4);
-        raxFreeSubtreeWithCallback(crax, clientplusv, 8 + 4, rax_free);
-    }
-
+    memcpy(clientplusv + 8, "aliases", 7);
+    raxFreeSubtreeWithCallback(crax, clientplusv, 8 + 7, rax_free);
     return 0;
 }
 
-int mr_get_alias_by_topic(rax* crax, const uint64_t client, const bool isincoming, const char* pubtopic, uint8_t* palias) {
+int mr_get_alias_by_topic(rax* crax, const uint64_t client, const bool isclient, const char* pubtopic, uint8_t* palias) {
     size_t ptlen = strlen(pubtopic);
-    char aliasbytopic[8 + 4 + ptlen]; // <Client ID>"iabt"<pubtopic>
-    uint8_t clientv[8];
-    for (int i = 0; i < 8; i++) clientv[i] = client >> ((7 - i) * 8) & 0xff;
-    memcpy(aliasbytopic, clientv, 8);
-    char* abt = isincoming ? "iabt" : "oabt";
-    memcpy(aliasbytopic + 8, abt, 4);
-    memcpy(aliasbytopic + 8 + 4, pubtopic, ptlen);
-    void* value = raxFind(crax, (uint8_t*)aliasbytopic, 8 + 4 + ptlen);
+    char aliasbytopic[8 + 16 + ptlen + 1]; // <Client ID>"aliasesclientabt"<pubtopic>\0
+    for (int i = 0; i < 8; i++) aliasbytopic[i] = client >> ((7 - i) * 8) & 0xff;
+    char* source = isclient ? "client" : "server";
+    snprintf(aliasbytopic + 8, 16 + ptlen + 1, "aliases%sabt%.*s", source, (int)ptlen, pubtopic);
+    void* value = raxFind(crax, (uint8_t*)aliasbytopic, 8 + 16 + ptlen);
     *palias = value == raxNotFound ? 0 : (uintptr_t)value & 0xff; // 0 is an invalid alias
     return 0;
 }
 
-int mr_get_topic_by_alias(rax* crax, const uint64_t client, const bool isincoming, const uint8_t alias, char** ppubtopic) {
-    char topicbyalias[8 + 4 + 1]; // <Client ID>"itba"<alias>
-    uint8_t clientv[8];
-    for (int i = 0; i < 8; i++) clientv[i] = client >> ((7 - i) * 8) & 0xff;
-    memcpy(topicbyalias, clientv, 8);
-    char* tba = isincoming ? "itba" : "otba";
-    memcpy(topicbyalias + 8, tba, 4);
-    memcpy(topicbyalias + 8 + 4, &alias, 1);
-    void* value = raxFind(crax, (uint8_t*)topicbyalias, 8 + 4 + 1);
+int mr_get_topic_by_alias(rax* crax, const uint64_t client, const bool isclient, const uint8_t alias, char** ppubtopic) {
+    char topicbyalias[8 + 16 + 1]; // <Client ID>"aliasesclienttba"<alias>\0
+    for (int i = 0; i < 8; i++) topicbyalias[i] = client >> ((7 - i) * 8) & 0xff;
+    char* source = isclient ? "client" : "server";
+    snprintf(topicbyalias + 8, 16 + 1, "aliases%stba", source);
+    topicbyalias[8 + 16] = alias;
+    void* value = raxFind(crax, (uint8_t*)topicbyalias, 8 + 16 + 1);
     *ppubtopic = value == raxNotFound ? NULL : value;
     return 0;
 }

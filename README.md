@@ -224,21 +224,22 @@ This tree contains a subscriptions inversion for each client, topic aliases for 
 
 The client tree uses the external format for both subscribe and publish topics.
 
-Topic aliases are distinct for incoming ones, which are set by the client, and outgoing ones set by the server. Hence there are 2 pairs (handling inversion) of synchronized subtrees: ``iabt`` / ``itba`` and ``oabt`` / ``otba`` for each client, providing alias-by-topic and topic-by-alias respectively for incoming (client) and outgoing (server) aliases.
+Topic aliases are in 2 distinct sets: ones set by the client and those set by the server. Hence there are 2 pairs (handling inversion) of synchronized subtrees for each client, providing alias-by-topic and topic-by-alias for client and server aliases.
 
-The topic alias leaf values are used to store the alias scalar and the topic pointer, since we do not need to search on them; this usage simplifies the updating of aliases and reduces tree depth.
+The topic alias leaf values are used to store the alias scalar and the topic pointer, since we do not need to search on them.
 
 Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHex()`` yields the following depiction of our 7 clients, their 9 subscriptions and the 2 aliases in the client tree – the short hex values after the ``=`` in the leaf nodes are aliases and the longer ones are pointers to topic strings:
 
 ```
 "0x00000000000000" -> [0x01020304050607]
-        `-(.) [ios]
-               `-(i) [at]
-                      `-(a) "bt" -> "baz/bam" -> []=0x8
-                      `-(t) "ba" -> [0x08] -> []=0x100290088
-               `-(o) [at]
-                      `-(a) "bt" -> "foo/bar" -> []=0x8
-                      `-(t) "ba" -> [0x08] -> []=0x1002900a0
+        `-(.) [as]
+               `-(a) "liases" -> [cs]
+                                  `-(c) "lient" -> [at]
+                                                    `-(a) "bt" -> "baz/bam" -> []=0x8
+                                                    `-(t) "ba" -> [0x08] -> []=0x104844080
+                                  `-(s) "erver" -> [at]
+                                                    `-(a) "bt" -> "foo/bar" -> []=0x8
+                                                    `-(t) "ba" -> [0x08] -> []=0x1048440a0
                `-(s) "ubs" -> [$f]
                                `-($) "SYS/foo/#" -> []
                                `-(f) "oo/" -> [#b]
@@ -249,5 +250,4 @@ Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus out
         `-(.) "subs" -> "$share/baz/foo/bar" -> []
         `-(.) "subs" -> "$share/baz/foo/bar" -> []
         `-(.) "subs" -> "+/bar" -> []
-        `-(.) "subs" -> "foo/#" -> []
-```
+        `-(.) "subs" -> "foo/#" -> []```

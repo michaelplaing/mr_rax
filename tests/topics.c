@@ -98,15 +98,21 @@ int topic_fun(void) {
     // mr_upsert_client_topic_alias(crax, 1, true, pubtopic, 1);
     // mr_upsert_client_topic_alias(crax, 1, true, pubtopic2, 2);
     // mr_upsert_client_topic_alias(crax, 1, true, pubtopic, 2);
-    uint8_t alias;
-    int rc = mr_get_alias_by_topic(crax, 1, true, pubtopic, &alias);
-    printf("mr_get_alias_by_topic:: rc: %d; alias: %u\n", rc, alias);
-    char* aliastopic;
-    rc = mr_get_topic_by_alias(crax, 1, true, 2, &aliastopic);
-    printf("mr_get_topic_by_alias:: rc: %d; aliastopic: %s\n", rc, aliastopic);
+    //uint8_t alias;
+    //int rc = mr_get_alias_by_topic(crax, 1, true, pubtopic, &alias);
+    //printf("mr_get_alias_by_topic:: rc: %d; alias: %u\n", rc, alias);
+    //char* aliastopic;
+    //rc = mr_get_topic_by_alias(crax, 1, true, 2, &aliastopic);
+    //printf("mr_get_topic_by_alias:: rc: %d; aliastopic: %s\n", rc, aliastopic);
     mr_upsert_client_topic_alias(crax, 1, true, pubtopic2, 8);
     mr_upsert_client_topic_alias(crax, 1, false, pubtopic3, 8);
     // mr_upsert_client_topic_alias(crax, 1, true, pubtopic2, 9);
+    uint8_t alias;
+    int rc = mr_get_alias_by_topic(crax, 1, false, pubtopic, &alias);
+    printf("mr_get_alias_by_topic:: rc: %d; alias: %u\n", rc, alias);
+    char* aliastopic;
+    rc = mr_get_topic_by_alias(crax, 1, false, 8, &aliastopic);
+    printf("mr_get_topic_by_alias:: rc: %d; aliastopic: %s\n", rc, aliastopic);
     //mr_remove_client_topic_aliases(crax, 1);
     //mr_remove_client_data(tcrax, crax, 1);
 
