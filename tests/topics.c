@@ -10,8 +10,8 @@
 #include "mr_rax_internal.h"
 
 int topic_fun(void) {
-    rax* tcrax = raxNew();
-    rax* crax = raxNew();
+    rax* tc_tree = raxNew();
+    rax* client_tree = raxNew();
 
     char* subtopicclientv[] = {
         // "$share/bom/bip/bop:21",
@@ -75,7 +75,7 @@ int topic_fun(void) {
 
         while ((clientstr = strsep(&unparsed_clients, ";")) != NULL) {
             uint64_t client = strtoull(clientstr, NULL, 0);
-            mr_insert_subscription(tcrax, crax, subtopic, client);
+            mr_insert_subscription(tc_tree, client_tree, subtopic, client);
         }
     }
 
@@ -86,45 +86,45 @@ int topic_fun(void) {
     char pubtopic[] = "foo/bar";
 
     char subtopic2[] = "$SYS/foo/#";int client2 = 1;
-    // mr_remove_subscription(tcrax, crax, subtopic2, client2);
+    //mr_remove_subscription(tc_tree, client_tree, subtopic2, client2);
     // char subtopic3[] = "foo/#";int client3 = 1;
-    // mr_remove_subscription(tcrax, crax, subtopic3, client3);
+    // mr_remove_subscription(tc_tree, client_tree, subtopic3, client3);
     // char subtopic4[] = "foo/bar";int client4 = 1;
-    // mr_remove_subscription(tcrax, crax, subtopic4, client4);
+    // mr_remove_subscription(tc_tree, client_tree, subtopic4, client4);
     //char subtopic2[] = "foo/bar/"; int client2 = 3;
-    //mr_remove_subscription(tcrax, crax, subtopic2, client2);
-    //mr_remove_client_subscriptions(tcrax, crax, client2);
+    //mr_remove_subscription(tc_tree, client_tree, subtopic2, client2);
+    //mr_remove_client_subscriptions(tc_tree, client_tree, client2);
 
-    // mr_upsert_client_topic_alias(crax, 1, true, pubtopic, 1);
-    // mr_upsert_client_topic_alias(crax, 1, true, pubtopic2, 2);
-    // mr_upsert_client_topic_alias(crax, 1, true, pubtopic, 2);
+    // mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic, 1);
+    // mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 2);
+    // mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic, 2);
     //uint8_t alias;
-    //int rc = mr_get_alias_by_topic(crax, 1, true, pubtopic, &alias);
+    //int rc = mr_get_alias_by_topic(client_tree, 1, true, pubtopic, &alias);
     //printf("mr_get_alias_by_topic:: rc: %d; alias: %u\n", rc, alias);
     //char* aliastopic;
-    //rc = mr_get_topic_by_alias(crax, 1, true, 2, &aliastopic);
+    //rc = mr_get_topic_by_alias(client_tree, 1, true, 2, &aliastopic);
     //printf("mr_get_topic_by_alias:: rc: %d; aliastopic: %s\n", rc, aliastopic);
-    mr_upsert_client_topic_alias(crax, 1, true, pubtopic2, 8);
-    mr_upsert_client_topic_alias(crax, 1, false, pubtopic3, 8);
-    // mr_upsert_client_topic_alias(crax, 1, true, pubtopic2, 9);
+    //mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 8);
+    //mr_upsert_client_topic_alias(client_tree, 1, false, pubtopic3, 8);
+    // mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 9);
     uint8_t alias;
-    int rc = mr_get_alias_by_topic(crax, 1, false, pubtopic, &alias);
-    printf("mr_get_alias_by_topic:: rc: %d; alias: %u\n", rc, alias);
+    //int rc = mr_get_alias_by_topic(client_tree, 1, false, pubtopic, &alias);
+    //printf("mr_get_alias_by_topic:: rc: %d; alias: %u\n", rc, alias);
     char* aliastopic;
-    rc = mr_get_topic_by_alias(crax, 1, false, 8, &aliastopic);
-    printf("mr_get_topic_by_alias:: rc: %d; aliastopic: %s\n", rc, aliastopic);
-    //mr_remove_client_topic_aliases(crax, 1);
-    //mr_remove_client_data(tcrax, crax, 1);
+    //rc = mr_get_topic_by_alias(client_tree, 1, false, 8, &aliastopic);
+    //printf("mr_get_topic_by_alias:: rc: %d; aliastopic: %s\n", rc, aliastopic);
+    //mr_remove_client_topic_aliases(client_tree, 1);
+    //mr_remove_client_data(tc_tree, client_tree, 1);
 
-    raxShowHex(tcrax);
-    raxShowHex(crax);
+    raxShowHex(tc_tree);
+    raxShowHex(client_tree);
 
     printf("get matching clients for '%s'\n", pubtopic);
 
-    rax* srax = raxNew();
-    mr_get_subscribed_clients(tcrax, srax, pubtopic);
+    rax* client_set = raxNew();
+    mr_get_subscribed_clients(tc_tree, client_set, pubtopic);
     raxIterator siter;
-    raxStart(&siter, srax);
+    raxStart(&siter, client_set);
 
     raxSeekSet(&siter);
 
@@ -136,17 +136,17 @@ int topic_fun(void) {
 
     puts("");
 
-    // raxShowHex(srax);
+    // raxShowHex(client_set);
 
     raxStop(&siter);
-    raxFree(srax);
+    raxFree(client_set);
 
     // char topic[MAX_TOPIC_LEN];
     // mr_get_normalized_topic(pubtopic, topic);
     // printf("raxSeekChildren for '%s'\n", topic);
-    // printf("raxFind %s:: value: %lu\n", topic, (uintptr_t)raxFind(tcrax, (uint8_t*)topic, strlen(topic)));
+    // printf("raxFind %s:: value: %lu\n", topic, (uintptr_t)raxFind(tc_tree, (uint8_t*)topic, strlen(topic)));
     // raxIterator tciter;
-    // raxStart(&tciter, tcrax);
+    // raxStart(&tciter, tc_tree);
     // raxSeekChildren(&tciter, (uint8_t*)topic, strlen(topic));
 
     // while(raxNextChild(&tciter)) {
@@ -155,8 +155,8 @@ int topic_fun(void) {
 
     // raxStop(&tciter);
 
-    raxFreeWithFlag(crax);
-    raxFree(tcrax);
+    raxFreeWithFlag(client_tree);
+    raxFree(tc_tree);
     return 0;
 }
 
