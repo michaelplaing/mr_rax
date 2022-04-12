@@ -133,10 +133,15 @@ These functions remove all the keys in a subtree.
 Each token subtree in a normalized topic is stored as a key. The client mark subtree, shared mark subtree and share subtree are also keys. Finally, the entire topic with Client ID is a key. Hence inserting ``@foobar<0xef><0x0000000000000001>`` would result in the following 5 keys:
 ```
 @
+↑
 @foo
+   ↑
 @foobar
+      ↑
 @foobar<0xef>
+           ↑
 @foobar<0xef><0x0000000000000001>
+                               ↑
 ```
 Due to prefix compression, storage for the 5 keys would look like:
 ```
