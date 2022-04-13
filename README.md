@@ -92,7 +92,7 @@ Note: ``/`` is a valid token separator for all UTF-8 character strings.
 
 ### The Rax tree implementation
 
-Rax is a binary character based adaptive radix prefix tree. This means that common prefixes are combined and node sizes vary depending on prefix compression, node compression and the number of children (radix), which can be 0 to 256 (hence adaptive). A key is a sequence of characters that can be "inserted" and/or "found". Optionally a key can have associated data: a pointer or a scalar. The keys are maintained in lexicographic order within the tree's hierarchy.
+Rax is a binary character based adaptive radix prefix tree. This means that common prefixes are combined and node sizes vary depending on prefix compression, node compression and the number of children (radix), which can be 0 to 256 (hence adaptive). A key is a sequence of bytes that can be "inserted" and/or "found". Optionally a key can have associated data: a pointer or a scalar. The keys are maintained in lexicographic order within the tree's hierarchy.
 
 There is much more information in the Rax README and ``rax.c``.
 
@@ -185,7 +185,7 @@ The additions to Rax include ``raxShowHex()``. When the 10 subscriptions above a
                                                                             `-(.) []
         `-(.) "0x8592" -> "0xe590a7" -> [0xfe] -> "0x0000000000000007" -> []
 ```
-A full explanation of the notation above is in the Rax README and ``rax.c``; a tricky part is that the first character of a key is stored in the node pointing to the key, not in the key itself.
+A full explanation of the notation above is in the Rax README and ``rax.c``; a tricky part is that the first byte of a key is stored in the node pointing to the key, not in the key itself.
 
 ### The TC tree search strategy
 
