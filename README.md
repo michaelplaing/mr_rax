@@ -38,11 +38,11 @@ The internal TC tree is composed of:
 There is no separator between the tokens.
 
 Then for normal subscription clients:
-- ``0xef`` as the Client Mark (invalid UTF8); and
+- ``0xef`` as the Client Mark (invalid UTF-8); and
 - 8 bytes of Client ID in big endian (network) order.
 
 And for shared subscription clients:
-- ``0xff`` as the Shared Mark (invalid UTF8);
+- ``0xff`` as the Shared Mark (invalid UTF-8);
 - the share name; and
 - 8 bytes of Client ID in big endian order.
 
@@ -76,13 +76,19 @@ A hash wildcard can be the last token at any level, e.g. topic ``foo/#``; Client
 
 ``@foo#<0xef><0x0000000000000007>``
 
-And of course a client can have any number of subscriptions and vice versa, e.g. topic ``foo/#``; Client ID ``1``:
+Of course a client can have any number of subscriptions and vice versa, e.g. topic ``foo/#``; Client ID ``1``:
 
 ``@foo#<0xef><0x0000000000000001>``
 
 And subscribe to a ``$SYS`` topic as well, e.g. topic ``$SYS/foo/#``; Client ID ``1``:
 
 ``$$SYSfoo#<0xef><0x0000000000000001>``
+
+Valid UTF-8 is fully supported, e.g. topic ``勺/锁``; Client ID ``7``:
+
+``@勺锁<0xef><0x0000000000000007>``
+
+Note: ``/`` is a valid token separator for all UTF-8 character strings.
 
 ### The Rax tree implementation
 
@@ -159,11 +165,11 @@ When ``@foobar<0xef><0x0000000000000002>`` is also inserted, we get:
                                     ↑
 ```
 
-The additions to Rax include ``raxShowHex()``. When the 9 subscriptions above are applied to the TC tree they result in the following ASCII art of the Rax internal structures, illustrating prefix compression, node compression and adaptive node sizes:
+The additions to Rax include ``raxShowHex()``. When the 10 subscriptions above are applied to the TC tree they result in the following ASCII art of the Rax internal structures, illustrating prefix compression, node compression and adaptive node sizes:
 ```
 [$@]
  `-($) "$SYS" -> "foo" -> [#] -> [0xfe] -> "0x0000000000000001" -> []
- `-(@) [+f]
+ `-(@) [0x2b66e9]
         `-(+) "bar" -> [0xfe] -> "0x0000000000000006" -> []
         `-(f) "oo" -> [#b]
                        `-(#) [0xfe] -> "0x00000000000000" -> [0x0107]
@@ -177,6 +183,7 @@ The additions to Rax include ``raxShowHex()``. When the 9 subscriptions above ar
                                       `-(.) "baz" -> "0x00000000000000" -> [0x0405]
                                                                             `-(.) []
                                                                             `-(.) []
+        `-(.) "0x8592" -> "0xe590a7" -> [0xfe] -> "0x0000000000000007" -> []
 ```
 A full explanation of the notation above is in the Rax README and ``rax.c``; a tricky part is that the first character of a key is stored in the node pointing to the key, not in the key itself.
 
@@ -234,7 +241,7 @@ Topic aliases are in 2 distinct sets: ones set by the client and those set by th
 
 The topic alias leaf values are used to store the alias scalar and the topic pointer, since we do not need to search on them.
 
-Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHex()`` yields the following depiction of our 7 clients, their 9 subscriptions and the 2 aliases in the client tree – the short hex values after the ``=`` in the leaf nodes are aliases and the longer ones are pointers to topic strings:
+Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHex()`` yields the following depiction of our 7 clients, their 10 subscriptions and the 2 aliases in the client tree – the short hex values after the ``=`` in the leaf nodes are aliases and the longer ones are pointers to topic strings:
 
 ```
 "0x00000000000000" -> [0x01020304050607]
@@ -242,10 +249,10 @@ Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus out
                `-(a) "liases" -> [cs]
                                   `-(c) "lient" -> [at]
                                                     `-(a) "bt" -> "baz/bam" -> []=0x8
-                                                    `-(t) "ba" -> [0x08] -> []=0x104844080
+                                                    `-(t) "ba" -> [0x08] -> []=0x104f08098
                                   `-(s) "erver" -> [at]
                                                     `-(a) "bt" -> "foo/bar" -> []=0x8
-                                                    `-(t) "ba" -> [0x08] -> []=0x1048440a0
+                                                    `-(t) "ba" -> [0x08] -> []=0x104f080b0
                `-(s) "ubs" -> [$f]
                                `-($) "SYS/foo/#" -> []
                                `-(f) "oo/" -> [#b]
@@ -256,4 +263,7 @@ Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus out
         `-(.) "subs" -> "$share/baz/foo/bar" -> []
         `-(.) "subs" -> "$share/baz/foo/bar" -> []
         `-(.) "subs" -> "+/bar" -> []
-        `-(.) "subs" -> "foo/#" -> []```
+        `-(.) "subs" -> [0x66e9]
+                         `-(f) "oo/#" -> []
+                         `-(.) "0x85922fe590a7" -> []
+```
