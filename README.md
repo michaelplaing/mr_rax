@@ -84,9 +84,9 @@ And subscribe to a ``$SYS`` topic as well, e.g. topic ``$SYS/foo/#``; Client ID 
 
 ``$$SYSfoo#<0xef><0x0000000000000001>``
 
-Valid UTF-8 is fully supported, e.g. topic ``勺/锁``; Client ID ``7``:
+Valid UTF-8 is fully supported, e.g. topic ``酒/吧``; Client ID ``7``:
 
-``@勺锁<0xef><0x0000000000000007>``
+``@酒吧<0xef><0x0000000000000007>``
 
 Note: ``/`` is a valid token separator for all UTF-8 character strings.
 
