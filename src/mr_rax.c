@@ -160,7 +160,7 @@ static int mr_trim_topic_tree(rax* tc_tree, raxIterator* piter, const char* topi
     return count;
 }
 
-int mr_remove_subscription(rax* tc_tree, rax* client_tree, const char* subtopic, const uint64_t client) {
+static int mr_remove_subscription_tc_tree(rax* tc_tree, const char* subtopic, const uint64_t client) {
     size_t stlen = strlen(subtopic);
     char topic[stlen + 3];
     char share[stlen + 1];
@@ -183,32 +183,37 @@ int mr_remove_subscription(rax* tc_tree, rax* client_tree, const char* subtopic,
         memcpy((void*)topic_key2 + tklen, &client_mark, 1);
     }
 
-    uint8_t clientv[8];
-    for (int i = 0; i < 8; i++) clientv[i] = client >> ((7 - i) * 8) & 0xff;
-    memcpy((void*)topic_key2 + tklen2, (void*)clientv, 8);
-
-    raxIterator iter;
-    raxStart(&iter, tc_tree);
+    for (int i = 0; i < 8; i++) topic_key2[tklen2 + i] = client >> ((7 - i) * 8) & 0xff;
 
     if (raxRemove(tc_tree, (uint8_t*)topic_key2, tklen2 + 8, NULL)) { // found
+        raxIterator iter;
+        raxStart(&iter, tc_tree);
+
         // trim hierarchy as long as there are no more child keys
         if (mr_trim_topic(tc_tree, &iter, topic_key2, tklen2)) { // client mark or share
             int trimmed = 1;
             if (slen) trimmed = mr_trim_topic(tc_tree, &iter, topic_key2, tlen + 1); // shared mark
             if (trimmed) mr_trim_topic_tree(tc_tree, &iter, topic, topic_key);
         }
+
+        raxStop(&iter);
     }
 
-    // remove inversion
-    raxStart(&iter, client_tree);
-    char topic3[8 + 4 + stlen];
-    memcpy(topic3, clientv, 8);
-    memcpy(topic3 + 8, "subs", 4);
-    memcpy(topic3 + 8 + 4, subtopic, stlen);
+    return 0;
+}
 
-    if (raxRemove(client_tree, (uint8_t*)topic3, 8 + 4 + stlen, NULL)) { // found
-        if (mr_trim_topic(client_tree, &iter, topic3, 8 + 4)) {
-            mr_trim_topic(client_tree, &iter, topic3, 8);
+static int mr_remove_subscription_client_tree(rax* client_tree, const char* subtopic, const uint64_t client) {
+    size_t stlen = strlen(subtopic);
+    raxIterator iter;
+    raxStart(&iter, client_tree);
+    char inversion[8 + 4 + stlen];
+    for (int i = 0; i < 8; i++) inversion[i] = client >> ((7 - i) * 8) & 0xff;
+    memcpy(inversion + 8, "subs", 4);
+    memcpy(inversion + 8 + 4, subtopic, stlen);
+
+    if (raxRemove(client_tree, (uint8_t*)inversion, 8 + 4 + stlen, NULL)) { // found
+        if (mr_trim_topic(client_tree, &iter, inversion, 8 + 4)) {
+            mr_trim_topic(client_tree, &iter, inversion, 8);
         }
     }
 
@@ -216,14 +221,20 @@ int mr_remove_subscription(rax* tc_tree, rax* client_tree, const char* subtopic,
     return 0;
 }
 
+int mr_remove_subscription(rax* tc_tree, rax* client_tree, const char* subtopic, const uint64_t client) {
+    mr_remove_subscription_tc_tree(tc_tree, subtopic, client);
+    mr_remove_subscription_client_tree(client_tree, subtopic, client);
+    return 0;
+}
+
 int mr_remove_client_subscriptions(rax* tc_tree, rax* client_tree, const uint64_t client) {
     rax* srax = raxNew();
     raxIterator iter;
     raxStart(&iter, client_tree);
-    uint8_t clientplusv[8 + 4];
-    for (int i = 0; i < 8; i++) clientplusv[i] = client >> ((7 - i) * 8) & 0xff;
-    memcpy(clientplusv + 8, "subs", 4);
-    raxSeekChildren(&iter, clientplusv, 8 + 4);
+    uint8_t inversion[8 + 4];
+    for (int i = 0; i < 8; i++) inversion[i] = client >> ((7 - i) * 8) & 0xff;
+    memcpy(inversion + 8, "subs", 4);
+    raxSeekChildren(&iter, inversion, 8 + 4);
     while(raxNextChild(&iter)) raxInsert(srax, iter.key, iter.key_len, NULL, NULL);
     raxStart(&iter, srax);
     raxSeekSet(&iter);
@@ -233,11 +244,12 @@ int mr_remove_client_subscriptions(rax* tc_tree, rax* client_tree, const uint64_
         char subtopic[stlen + 1];
         memcpy(subtopic, iter.key + 8 + 4, stlen);
         subtopic[stlen] = '\0';
-        mr_remove_subscription(tc_tree, client_tree, subtopic, client);
+        mr_remove_subscription_tc_tree(tc_tree, subtopic, client);
     }
 
     raxStop(&iter);
     raxFree(srax);
+    raxFreeSubtree(client_tree, inversion, 8 + 4);
     return 0;
 }
 
@@ -391,10 +403,10 @@ int mr_upsert_client_topic_alias(
 }
 
 int mr_remove_client_topic_aliases(rax* client_tree, const uint64_t client) {
-    uint8_t clientplusv[8 + 7];
-    for (int i = 0; i < 8; i++) clientplusv[i] = client >> ((7 - i) * 8) & 0xff;
-    memcpy(clientplusv + 8, "aliases", 7);
-    raxFreeSubtreeWithCallback(client_tree, clientplusv, 8 + 7, rax_free);
+    uint8_t aliases[8 + 7];
+    for (int i = 0; i < 8; i++) aliases[i] = client >> ((7 - i) * 8) & 0xff;
+    memcpy(aliases + 8, "aliases", 7);
+    raxFreeSubtreeWithCallback(client_tree, aliases, 8 + 7, rax_free);
     return 0;
 }
 
