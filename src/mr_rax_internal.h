@@ -8,6 +8,10 @@ int mr_get_subscribe_topic(const char* subtopic, char* topic, char* share, char*
 
 static int mr_tokenize_topic(char* topic, char** tokenv);
 static int mr_insert_topic_tree(rax* tc_tree, const char* topic);
+static int mr_trim_topic(rax* tc_tree, raxIterator* piter, char* topic_key, size_t len);
+static int mr_trim_topic_tree(rax* tc_tree, raxIterator* piter, const char* topic, char* topic_key);
+static int mr_remove_subscription_tc_tree(rax* tc_tree, const char* subtopic, const uint64_t client);
+static int mr_remove_subscription_client_tree(rax* client_tree, const char* subtopic, const uint64_t client);
 static int mr_get_topic_clients(rax* tc_tree, rax* client_set, uint8_t* key, size_t key_len);
 
 static int mr_probe_subscriptions(
