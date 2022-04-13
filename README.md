@@ -185,7 +185,7 @@ The additions to Rax include ``raxShowHex()``. When the 10 subscriptions above a
                                                                             `-(.) []
         `-(.) "0x8592" -> "0xe590a7" -> [0xfe] -> "0x0000000000000007" -> []
 ```
-A full explanation of the notation above is in the Rax README and ``rax.c``; a tricky part is that the first byte of a key is stored in the node pointing to the key, not in the key itself.
+A full explanation of the notation above is in the Rax README and ``rax.c``; a tricky part is that edge bytes pointing to nodes are not stored in the nodes themselves.
 
 ### The TC tree search strategy
 
