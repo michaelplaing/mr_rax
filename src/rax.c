@@ -488,7 +488,10 @@ static inline size_t raxLowWalk(rax *rax, unsigned char *s, size_t len, raxNode 
             i++;
         }
 
-        if (ts) raxStackPush(ts,h); /* Save stack of parent nodes. */
+        if (ts) {
+            h->memo = h->iscompr ? 0 : j+1; /* next child */
+            raxStackPush(ts,h); /* Save stack of parent nodes. */
+        }
         raxNode **children = raxNodeFirstChildPtr(h);
         if (h->iscompr) j = 0; /* Compressed node only child is at index 0. */
         memcpy(&h,children+j,sizeof(h));
@@ -1350,6 +1353,7 @@ int raxIteratorNextStep(raxIterator *it, int noup) {
             /* Seek the lexicographically smaller key in this subtree, which
              * is the first one found always going torwards the first child
              * of every successive node. */
+            it->node->memo = 1; // offset to next child
             if (!raxStackPush(&it->stack,it->node)) return 0;
             raxNode **cp = raxNodeFirstChildPtr(it->node);
             if (!raxIteratorAddChars(it,it->node->data,
@@ -1398,17 +1402,19 @@ int raxIteratorNextStep(raxIterator *it, int noup) {
                 /* Try visiting the next child if there was at least one
                  * additional child. */
                 if (!it->node->iscompr && it->node->size > (old_noup ? 0 : 1)) {
-                    raxNode **cp = raxNodeFirstChildPtr(it->node);
-                    int i = 0;
-                    while (i < it->node->size) {
-                        debugf("SCAN NEXT %c\n", it->node->data[i]);
-                        if (it->node->data[i] > prevchild) break;
-                        i++;
-                        cp++;
-                    }
-                    if (i != it->node->size) {
+                    raxNode **cp = raxNodeFirstChildPtr(it->node) + it->node->memo;
+                    // int i = 0;
+                    // while (i < it->node->size) {
+                    //     debugf("SCAN NEXT %c\n", it->node->data[i]);
+                    //     if (it->node->data[i] > prevchild) break;
+                    //     i++;
+                    //     cp++;
+                    // }
+                    // if (i != it->node->size) {
+                    if (it->node->memo != (it->node->size & 0xff)) {
                         debugf("SCAN found a new node\n");
-                        raxIteratorAddChars(it,it->node->data+i,1);
+                        raxIteratorAddChars(it,it->node->data+it->node->memo,1);
+                        it->node->memo = 1; // offset to next child
                         if (!raxStackPush(&it->stack,it->node)) return 0;
                         memcpy(&it->node,cp,sizeof(it->node));
                         /* Call the node callback if any, and replace the node
@@ -1585,34 +1591,11 @@ int raxSeekEle(raxIterator *it, const char *op, unsigned char *ele, size_t len) 
          * "equal" condition. */
         if (!raxIteratorAddChars(it,ele,len)) return 0; /* OOM. */
         it->data = raxGetData(it->node);
-    } else if (lt || gt) {
+    } else if (lt || gt) { // changed to match Redis 7.0
         /* Exact key not found or eq flag not set. We have to set as current
          * key the one represented by the node we stopped at, and perform
-         * a next/prev operation to seek. To reconstruct the key at this node
-         * we start from the parent and go to the current node, accumulating
-         * the characters found along the way. */
-        if (!raxStackPush(&it->stack,it->node)) return 0;
-        for (size_t j = 1; j < it->stack.items; j++) {
-            raxNode *parent = it->stack.stack[j-1];
-            raxNode *child = it->stack.stack[j];
-            if (parent->iscompr) {
-                if (!raxIteratorAddChars(it,parent->data,parent->size))
-                    return 0;
-            } else {
-                raxNode **cp = raxNodeFirstChildPtr(parent);
-                unsigned char *p = parent->data;
-                while(1) {
-                    raxNode *aux;
-                    memcpy(&aux,cp,sizeof(aux));
-                    if (aux == child) break;
-                    cp++;
-                    p++;
-                }
-                if (!raxIteratorAddChars(it,p,1)) return 0;
-            }
-        }
-        raxStackPop(&it->stack);
-
+         * a next/prev operation to seek. */
+        raxIteratorAddChars(it, ele, i-splitpos);
         /* We need to set the iterator in the correct state to call next/prev
          * step in order to seek the desired element. */
         debugf("After initial seek: i=%d len=%d key=%.*s\n",
