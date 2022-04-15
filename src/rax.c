@@ -1991,12 +1991,12 @@ int raxIteratorNextChildStep(raxIterator* it) {
 
         while(!it->node->iscompr && it->node->size > 1) { // find the next child node; exit if no children
             // node is not compressed ∴ size is 256 or less; memo is 8 bits & may overflow (unlikely but...)
-            if (it->node->memo != (it->node->size & 0xff)) { // found a child subtree to explore
+            if (it->node->memo + 1 != (it->node->size & 0xff)) { // found a child subtree to explore
+                it->node->memo += 1; // increment offset to 1st child char
                 if (!raxIteratorAddChars(it, it->node->data + it->node->memo, 1)) return 0;
                 raxNode** cp = raxNodeFirstChildPtr(it->node) + it->node->memo;
-                it->node->memo += 1; // increment offset to next child
                 if (!raxStackPush(&it->stack, it->node)) return 0;
-                memcpy(&it->node, cp, sizeof(it->node)); // make child node current
+                memcpy(&it->node, cp, sizeof(it->node)); // make new child node current
 
                 while(1) {
                     if (it->node->iskey) {
@@ -2007,7 +2007,7 @@ int raxIteratorNextChildStep(raxIterator* it) {
                     int children = it->node->iscompr ? 1 : it->node->size;
 
                     if (children) {
-                        it->node->memo = 1; // offset to next child
+                        it->node->memo = 0; // offset to current child
                         if (!raxStackPush(&it->stack, it->node)) return 0;
                         cp = raxNodeFirstChildPtr(it->node);
 
@@ -2066,7 +2066,7 @@ int raxSeekChildren(raxIterator* it, uint8_t* key, size_t len) {
         int children = it->node->iscompr ? 1 : it->node->size;
 
         if (children) { // descend trying 1st children
-            it->node->memo = 1; // offset to next child
+            it->node->memo = 0; // offset to current child
             if (!raxStackPush(&it->stack, it->node)) return 0;
             raxNode** cp = raxNodeFirstChildPtr(it->node);
 
