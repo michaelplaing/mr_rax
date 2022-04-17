@@ -45,4 +45,6 @@ if (UNIT_TESTING)
     add_subdirectory(tests)
 endif()
 
+option(RAX_DEBUG_MSG "Prints a lot of debug prints" OFF)
+
 add_subdirectory(src)

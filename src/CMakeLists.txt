@@ -11,3 +11,8 @@ add_library(
 
 target_include_directories(mr_rax PUBLIC ../include)
 target_link_libraries(mr_rax PUBLIC jemalloc)
+
+if(RAX_DEBUG_MSG)
+    set_target_properties(mr_rax PROPERTIES COMPILE_DEFINITIONS "RAX_DEBUG_MSG=1")
+    message(STATUS "Compiling with debug messages turned on")
+endif()

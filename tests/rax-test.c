@@ -979,6 +979,8 @@ int main(int argc, char **argv) {
         }
     }
 
+    raxSetDebugMsg(0);
+
     int errors = 0;
 
     if (do_units) {
@@ -1014,6 +1016,7 @@ int main(int argc, char **argv) {
     }
 
     if (do_fuzz) {
+/*
         for (int i = 0; i < 10; i++) {
             double alpha = (double)rc4rand() / RAND_MAX;
             double beta = 1-alpha;
@@ -1033,13 +1036,14 @@ int main(int argc, char **argv) {
             if (fuzzTest(KEY_RANDOM_SMALL_CSET,numops,.7,.3)) errors++;
             numops *= 10;
         }
-
+ */
         if (fuzzTest(KEY_CHAIN,1000,.7,.3)) errors++;
         printf("Iterator fuzz test: "); fflush(stdout);
         for (int i = 0; i < 100000; i++) {
             if (iteratorFuzzTest(KEY_INT,100)) errors++;
             if (iteratorFuzzTest(KEY_UNIQUE_ALPHA,100)) errors++;
             if (iteratorFuzzTest(KEY_RANDOM_ALPHA,1000)) errors++;
+            printf("here\n");
             if (iteratorFuzzTest(KEY_RANDOM,1000)) errors++;
             if (i && !(i % 100)) {
                 printf(".");

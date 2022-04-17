@@ -10,6 +10,7 @@
 #include "mr_rax_internal.h"
 
 int topic_fun(void) {
+    raxSetDebugMsg(0);
     rax* tc_tree = raxNew();
     rax* client_tree = raxNew();
 
@@ -57,6 +58,15 @@ int topic_fun(void) {
         "foo/#:7;1",
         "$SYS/foo/#:1",
         "酒/吧:7",
+        "A:9",
+        "B:9",
+        "C:9",
+        "C/V:9",
+        "C/W:9",
+        "C/Y:9",
+        "C/Z:9",
+        "D:9",
+        "E:9",
     };
 
     size_t numtopics = sizeof(subtopicclientv) / sizeof(subtopicclientv[0]);
@@ -105,8 +115,8 @@ int topic_fun(void) {
     //char* aliastopic;
     //rc = mr_get_topic_by_alias(client_tree, 1, true, 2, &aliastopic);
     //printf("mr_get_topic_by_alias:: rc: %d; aliastopic: %s\n", rc, aliastopic);
-    mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 8);
-    mr_upsert_client_topic_alias(client_tree, 1, false, pubtopic3, 8);
+    // mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 8);
+    // mr_upsert_client_topic_alias(client_tree, 1, false, pubtopic3, 8);
     // mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 9);
     uint8_t alias;
     //int rc = mr_get_alias_by_topic(client_tree, 1, false, pubtopic, &alias);
@@ -118,29 +128,36 @@ int topic_fun(void) {
     //mr_remove_client_data(tc_tree, client_tree, 1);
 
     raxShowHex(tc_tree);
-    raxShowHex(client_tree);
+    //raxShowHex(client_tree);
 
-    printf("get matching clients for '%s'\n", pubtopic);
+    raxIterator titer;
+    raxStart(&titer, tc_tree);
+    raxSeek(&titer, "<", (uint8_t*)"@CX", 3);
+    raxNext(&titer);
+    printf("Found:: Key: %.*s; len: %zu\n", (int)titer.key_len, titer.key, titer.key_len);
+    raxStop(&titer);
 
-    rax* client_set = raxNew();
-    mr_get_subscribed_clients(tc_tree, client_set, pubtopic);
-    raxIterator siter;
-    raxStart(&siter, client_set);
+    //printf("get matching clients for '%s'\n", pubtopic);
 
-    raxSeekSet(&siter);
+    //rax* client_set = raxNew();
+    //mr_get_subscribed_clients(tc_tree, client_set, pubtopic);
+    // raxIterator siter;
+    // raxStart(&siter, client_set);
 
-    while(raxNextInSet(&siter)) {
-        uint64_t client = 0;
-        for (int i = 0; i < 8; i++) client += siter.key[i] << ((8 - i - 1) * 8);
-        printf(" %llu", client);
-    }
+    //raxSeekSet(&siter);
 
-    puts("");
+    // while(raxNextInSet(&siter)) {
+    //     uint64_t client = 0;
+    //     for (int i = 0; i < 8; i++) client += siter.key[i] << ((8 - i - 1) * 8);
+    //     printf(" %llu", client);
+    // }
+
+    // puts("");
 
     // raxShowHex(client_set);
 
-    raxStop(&siter);
-    raxFree(client_set);
+    // raxStop(&siter);
+    // raxFree(client_set);
 
     // char topic[MAX_TOPIC_LEN];
     // mr_get_normalized_topic(pubtopic, topic);
