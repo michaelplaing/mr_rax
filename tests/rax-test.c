@@ -1016,7 +1016,6 @@ int main(int argc, char **argv) {
     }
 
     if (do_fuzz) {
-/*
         for (int i = 0; i < 10; i++) {
             double alpha = (double)rc4rand() / RAND_MAX;
             double beta = 1-alpha;
@@ -1036,7 +1035,7 @@ int main(int argc, char **argv) {
             if (fuzzTest(KEY_RANDOM_SMALL_CSET,numops,.7,.3)) errors++;
             numops *= 10;
         }
- */
+
         if (fuzzTest(KEY_CHAIN,1000,.7,.3)) errors++;
         printf("Iterator fuzz test: "); fflush(stdout);
         for (int i = 0; i < 100000; i++) {

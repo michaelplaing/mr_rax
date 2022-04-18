@@ -486,7 +486,7 @@ static inline size_t raxLowWalk(
             int found = 0;
             for (j = 0; j < h->size; j++) {
                 if (ts && v[j] > s[i] && !found) {h->memo = j; found = 1;}
-                if (v[j] == s[i]) {break;}
+                if (v[j] == s[i]) break;
             }
             if (j == h->size) {
                 if (!found) h->memo = j;
