@@ -1043,7 +1043,7 @@ int main(int argc, char **argv) {
             if (iteratorFuzzTest(KEY_INT,100)) errors++;
             if (iteratorFuzzTest(KEY_UNIQUE_ALPHA,100)) errors++;
             if (iteratorFuzzTest(KEY_RANDOM_ALPHA,1000)) errors++;
-            printf("here\n");
+            //printf("here\n");
             if (iteratorFuzzTest(KEY_RANDOM,1000)) errors++;
             if (i && !(i % 100)) {
                 printf(".");

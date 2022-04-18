@@ -483,16 +483,24 @@ static inline size_t raxLowWalk(
             /* Even when h->size is large, linear scan provides good
              * performances compared to other approaches that are in theory
              * more sounding, like performing a binary search. */
+            int found = 0;
             for (j = 0; j < h->size; j++) {
-                if (v[j] == s[i]) break;
+                if (ts && v[j] > s[i] && !found) {h->memo = j; found = 1;}
+                if (v[j] == s[i]) {break;}
             }
-            if (j == h->size) break;
+            if (j == h->size) {
+                if (!found) h->memo = j;
+                break;
+            }
             i++;
         }
 
-        if (ts) raxStackPush(ts,h); /* Save stack of parent nodes. */
-        raxNode **children = raxNodeFirstChildPtr(h);
         if (h->iscompr) j = 0; /* Compressed node only child is at index 0. */
+        if (ts) {
+            h->memo = j;
+            raxStackPush(ts,h); /* Save stack of parent nodes. */
+        }
+        raxNode **children = raxNodeFirstChildPtr(h);
         memcpy(&h,children+j,sizeof(h));
         parentlink = children+j;
         j = 0; /* If the new node is compressed and we do not
@@ -1587,10 +1595,15 @@ int raxSeekEle(raxIterator *it, const char *op, unsigned char *ele, size_t len) 
      * perform a lookup, and later invoke the prev/next key code that
      * we already use for iteration. */
     int splitpos = 0;
+    // raxNode** parentlink;
     size_t i = raxLowWalk(it->rt,ele,len,&it->node,NULL,&splitpos,&it->stack);
+    // size_t i = raxLowWalk(it->rt,ele,len,&it->node,&parentlink,&splitpos,&it->stack);
 
     /* Return OOM on incomplete stack info. */
     if (it->stack.oom) return 0;
+
+    // raxNode* parent = raxStackPeek(&it->stack);
+    // parent->memo = parentlink - raxNodeFirstChildPtr(parent);
 
     if (eq && i == len && (!it->node->iscompr || splitpos == 0) &&
         it->node->iskey)
