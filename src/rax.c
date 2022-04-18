@@ -483,22 +483,14 @@ static inline size_t raxLowWalk(
             /* Even when h->size is large, linear scan provides good
              * performances compared to other approaches that are in theory
              * more sounding, like performing a binary search. */
-            size_t k = 0;
             for (j = 0; j < h->size; j++) {
-                if (v[j] > s[i]) k = j;
                 if (v[j] == s[i]) break;
             }
-            if (j == h->size) {
-                h->memo = k; // set parent offset to "hole" (mismatch)
-                break;
-            }
+            if (j == h->size) break;
             i++;
         }
 
-        if (ts) {
-            h->memo = h->iscompr ? 0 : j; // set parent offset to current child
-            raxStackPush(ts,h); /* Save stack of parent nodes. */
-        }
+        if (ts) raxStackPush(ts,h); /* Save stack of parent nodes. */
         raxNode **children = raxNodeFirstChildPtr(h);
         if (h->iscompr) j = 0; /* Compressed node only child is at index 0. */
         memcpy(&h,children+j,sizeof(h));
