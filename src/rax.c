@@ -485,8 +485,8 @@ static inline size_t raxLowWalk(
              * more sounding, like performing a binary search. */
             int found = 0;
             for (j = 0; j < h->size; j++) {
-                if (ts && v[j] > s[i] && !found) {h->memo = j; found = 1;}
                 if (v[j] == s[i]) break;
+                if (ts && v[j] > s[i] && !found) {h->memo = j; found = 1;}
             }
             if (j == h->size) {
                 if (!found) h->memo = j;
