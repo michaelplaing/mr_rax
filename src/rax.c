@@ -463,6 +463,50 @@ raxNode *raxCompressNode(raxNode *n, unsigned char *s, size_t len, raxNode **chi
  * compressed node characters are needed to represent the key, just all
  * its parents nodes). */
 static inline size_t raxLowWalk(
+    rax *rax, unsigned char *s, size_t len, raxNode **stopnode, raxNode ***plink, int *splitpos
+) {
+    raxNode *h = rax->head;
+    raxNode **parentlink = &rax->head;
+
+    size_t i = 0; /* Position in the string. */
+    size_t j = 0; /* Position in the node children (or bytes if compressed).*/
+    while(h->size && i < len) {
+        debugnode("Lookup current node",h);
+        unsigned char *v = h->data;
+
+        if (h->iscompr) {
+            for (j = 0; j < h->size && i < len; j++, i++) {
+                if (v[j] != s[i]) break;
+            }
+            if (j != h->size) break;
+        } else {
+            /* Even when h->size is large, linear scan provides good
+             * performances compared to other approaches that are in theory
+             * more sounding, like performing a binary search. */
+            for (j = 0; j < h->size; j++) {
+                if (v[j] == s[i]) break;
+            }
+            if (j == h->size) break;
+            i++;
+        }
+
+        if (h->iscompr) j = 0; /* Compressed node only child is at index 0. */
+        raxNode **children = raxNodeFirstChildPtr(h);
+        memcpy(&h,children+j,sizeof(h));
+        parentlink = children+j;
+        j = 0; /* If the new node is compressed and we do not
+                  iterate again (since i == l) set the split
+                  position to 0 to signal this node represents
+                  the searched key. */
+    }
+    debugnode("Lookup stop node is",h);
+    if (stopnode) *stopnode = h;
+    if (plink) *plink = parentlink;
+    if (splitpos && h->iscompr) *splitpos = j;
+    return i;
+}
+
+static inline size_t raxLowWalkSeek(
     rax *rax, unsigned char *s, size_t len, raxNode **stopnode, raxNode ***plink, int *splitpos, raxStack *ts
 ) {
     raxNode *h = rax->head;
@@ -486,7 +530,7 @@ static inline size_t raxLowWalk(
             int found = 0;
             for (j = 0; j < h->size; j++) {
                 if (v[j] == s[i]) break;
-                if (ts && v[j] > s[i] && !found) {h->memo = j; found = 1;}
+                if (v[j] > s[i] && !found) {h->memo = j; found = 1;}
             }
             if (j == h->size) {
                 if (!found) h->memo = j;
@@ -496,10 +540,8 @@ static inline size_t raxLowWalk(
         }
 
         if (h->iscompr) j = 0; /* Compressed node only child is at index 0. */
-        if (ts) {
-            h->memo = j;
-            raxStackPush(ts,h); /* Save stack of parent nodes. */
-        }
+        h->memo = j;
+        raxStackPush(ts,h); /* Save stack of parent nodes. */
         raxNode **children = raxNodeFirstChildPtr(h);
         memcpy(&h,children+j,sizeof(h));
         parentlink = children+j;
@@ -531,7 +573,7 @@ int raxGenericInsert(rax *rax, unsigned char *s, size_t len, void *data, void **
     raxNode *h, **parentlink;
 
     debugf("### Insert %.*s with value %p\n", (int)len, s, data);
-    i = raxLowWalk(rax,s,len,&h,&parentlink,&j,NULL);
+    i = raxLowWalk(rax,s,len,&h,&parentlink,&j);
 
     /* If i == len we walked following the whole string. If we are not
      * in the middle of a compressed node, the string is either already
@@ -937,7 +979,7 @@ void *raxFind(rax *rax, unsigned char *s, size_t len) {
 
     debugf("### Lookup: %.*s\n", (int)len, s);
     int splitpos = 0;
-    size_t i = raxLowWalk(rax,s,len,&h,NULL,&splitpos,NULL);
+    size_t i = raxLowWalk(rax,s,len,&h,NULL,&splitpos);
     if (i != len || (h->iscompr && splitpos != 0) || !h->iskey)
         return raxNotFound;
     return raxGetData(h);
@@ -1043,7 +1085,7 @@ int raxRemoveGeneric(rax *rax, unsigned char *s, size_t len, void **old, int* pi
     debugf("### Delete: %.*s\n", (int)len, s);
     raxStackInit(&ts);
     int splitpos = 0;
-    size_t i = raxLowWalk(rax,s,len,&h,NULL,&splitpos,&ts);
+    size_t i = raxLowWalkSeek(rax,s,len,&h,NULL,&splitpos,&ts);
     if (i != len || (h->iscompr && splitpos != 0) || !h->iskey) {
         raxStackFree(&ts);
         return 0;
@@ -1595,15 +1637,10 @@ int raxSeekEle(raxIterator *it, const char *op, unsigned char *ele, size_t len) 
      * perform a lookup, and later invoke the prev/next key code that
      * we already use for iteration. */
     int splitpos = 0;
-    // raxNode** parentlink;
-    size_t i = raxLowWalk(it->rt,ele,len,&it->node,NULL,&splitpos,&it->stack);
-    // size_t i = raxLowWalk(it->rt,ele,len,&it->node,&parentlink,&splitpos,&it->stack);
+    size_t i = raxLowWalkSeek(it->rt,ele,len,&it->node,NULL,&splitpos,&it->stack);
 
     /* Return OOM on incomplete stack info. */
     if (it->stack.oom) return 0;
-
-    // raxNode* parent = raxStackPeek(&it->stack);
-    // parent->memo = parentlink - raxNodeFirstChildPtr(parent);
 
     if (eq && i == len && (!it->node->iscompr || splitpos == 0) &&
         it->node->iskey)
