@@ -699,6 +699,8 @@ int regtest1(void) {
     raxInsert(rax,(unsigned char*)"FY",2,(void*)(long)4,NULL);
     raxInsert(rax,(unsigned char*)"WI",2,(void*)(long)5,NULL);
 
+    raxShow(rax);
+
     raxIterator iter;
     raxStart(&iter,rax);
     raxSeek(&iter,">",(unsigned char*)"FMP",3);
@@ -706,7 +708,7 @@ int regtest1(void) {
         if (iter.key_len != 2 ||
             memcmp(iter.key,"FY",2))
         {
-            printf("Regression test 1 failed: 'FY' expected, got: '%.*s'\n",
+            printf("Regression test 1 failed: '>' 'FMP' – 'FY' expected, got: '%.*s'\n",
                 (int)iter.key_len, (char*)iter.key);
             return 1;
         }

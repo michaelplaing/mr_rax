@@ -132,7 +132,8 @@ int topic_fun(void) {
 
     raxIterator titer;
     raxStart(&titer, tc_tree);
-    raxSeek(&titer, "=", (uint8_t*)"@CY", 3);
+    uint8_t val[4] = {'@','C',0xfe,0x01};
+    raxSeek(&titer, ">", val, 4);
     raxNext(&titer);
     printf("Found:: Key: %.*s; len: %zu\n", (int)titer.key_len, titer.key, titer.key_len);
     raxStop(&titer);

@@ -491,8 +491,8 @@ static inline size_t raxLowWalk(
         }
 
         if (ts) raxStackPush(ts,h); /* Save stack of parent nodes. */
-        if (h->iscompr) j = 0; /* Compressed node only child is at index 0. */
         raxNode **children = raxNodeFirstChildPtr(h);
+        if (h->iscompr) j = 0; /* Compressed node only child is at index 0. */
         memcpy(&h,children+j,sizeof(h));
         parentlink = children+j;
         j = 0; /* If the new node is compressed and we do not
@@ -1454,14 +1454,6 @@ int raxIteratorNextStep(raxIterator *it, int noup) {
                  * additional child. */
                 if (!it->node->iscompr && it->node->size > (old_noup ? 0 : 1)) {
                     debugf("it->node->size: %d\n", it->node->size);
-                    // int i = 0;
-                    // while (i < it->node->size) {
-                    //     debugf("SCAN NEXT %c\n", it->node->data[i]);
-                    //     if (it->node->data[i] > prevchild) break;
-                    //     i++;
-                    //     cp++;
-                    // }
-                    // if (i != it->node->size) {
                     if (it->node->memo + (old_noup ? 0 : 1) != it->node->size) {
                         debugf("Set cp: it->node->memo + (old_noup ? 0 : 1): %d\n", it->node->memo + (old_noup ? 0 : 1));
                         it->node->memo += (old_noup ? 0 : 1); // set parent offset to current child
@@ -1550,21 +1542,8 @@ int raxIteratorPrevStep(raxIterator *it, int noup) {
         /* Try visiting the prev child if there is at least one
          * child. */
         if (!it->node->iscompr && it->node->size > (old_noup ? 0 : 1)) {
-            // raxNode **cp = raxNodeLastChildPtr(it->node);
-            // int i = it->node->size-1;
-            // while (i >= 0) {
-            //     debugf("SCAN PREV %c\n", it->node->data[i]);
-            //     if (it->node->data[i] < prevchild) break;
-            //     i--;
-            //     cp--;
-            // }
-            /* If we found a new subtree to explore in this node,
-             * go deeper following all the last children in order to
-             * find the key lexicographically greater. */
-            // if (i != -1) {
             if (it->node->memo != 0) {
                 it->node->memo -= 1; // set parent offset to current child
-                // raxNode **cp = raxNodeLastChildPtr(it->node);
                 raxNode **cp = raxNodeFirstChildPtr(it->node) + it->node->memo;
                 debugf("SCAN found a new node\n");
                 /* Enter the node we just found. */
