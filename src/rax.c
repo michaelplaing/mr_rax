@@ -514,6 +514,7 @@ static inline size_t raxLowWalkSeek(
 
     size_t i = 0; /* Position in the string. */
     size_t j = 0; /* Position in the node children (or bytes if compressed).*/
+    int gt = 0;
     while(h->size && i < len) {
         debugnode("Lookup current node",h);
         unsigned char *v = h->data;
@@ -524,13 +525,20 @@ static inline size_t raxLowWalkSeek(
             }
             if (j != h->size) break;
         } else {
-            int found = 0;
             for (j = 0; j < h->size; j++) {
                 if (v[j] == s[i]) break;
-                if (v[j] > s[i] && !found) {h->memo = j; found = 1;}
+                if (v[j] > s[i]) {
+                    h->memo = j;
+                    gt = 1;
+                    break;
+                }
+            }
+            if (gt) {
+                j = h->size;
+                break;
             }
             if (j == h->size) {
-                if (!found) h->memo = j;
+                h->memo = j;
                 break;
             }
             i++;
@@ -1611,7 +1619,7 @@ int raxSeekEle(raxIterator *it, const char *op, unsigned char *ele, size_t len) 
      * perform a lookup, and later invoke the prev/next key code that
      * we already use for iteration. */
     int splitpos = 0;
-    size_t i = raxLowWalkSeek(it->rt,ele,len,&it->node,NULL,&splitpos,&it->stack);
+    size_t i = raxLowWalkSeek(it->rt,ele,len,&it->node,&splitpos,&it->stack);
 
     /* Return OOM on incomplete stack info. */
     if (it->stack.oom) return 0;
