@@ -699,7 +699,7 @@ int regtest1(void) {
     raxInsert(rax,(unsigned char*)"FY",2,(void*)(long)4,NULL);
     raxInsert(rax,(unsigned char*)"WI",2,(void*)(long)5,NULL);
 
-    raxShow(rax);
+    // raxShow(rax);
 
     raxIterator iter;
     raxStart(&iter,rax);
