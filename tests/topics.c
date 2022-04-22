@@ -58,15 +58,15 @@ int topic_fun(void) {
         "foo/#:7;1",
         "$SYS/foo/#:1",
         "酒/吧:7",
-        "A:9",
-        "B:9",
-        "C:9",
-        "C/V:9",
-        "C/W:9",
-        "C/Y:9",
-        "C/Z:9",
-        "D:9",
-        "E:9",
+        // "A:9",
+        // "B:9",
+        // "C:9",
+        // "C/V:9",
+        // "C/W:9",
+        // "C/Y:9",
+        // "C/Z:9",
+        // "D:9",
+        // "E:9",
     };
 
     size_t numtopics = sizeof(subtopicclientv) / sizeof(subtopicclientv[0]);
@@ -130,30 +130,30 @@ int topic_fun(void) {
     raxShowHex(tc_tree);
     //raxShowHex(client_tree);
 
-    raxIterator titer;
-    raxStart(&titer, tc_tree);
-    uint8_t val[4] = {'@','C',0xfe,0x01};
-    raxSeek(&titer, ">", val, 4);
-    raxNext(&titer);
-    printf("Found:: Key: %.*s; len: %zu\n", (int)titer.key_len, titer.key, titer.key_len);
-    raxStop(&titer);
+    // raxIterator titer;
+    // raxStart(&titer, tc_tree);
+    // uint8_t val[4] = {'@','C',0xfe,0x01};
+    // raxSeek(&titer, ">", val, 4);
+    // raxNext(&titer);
+    // printf("Found:: Key: %.*s; len: %zu\n", (int)titer.key_len, titer.key, titer.key_len);
+    // raxStop(&titer);
 
-    //printf("get matching clients for '%s'\n", pubtopic);
+    printf("get matching clients for '%s'\n", pubtopic);
 
-    //rax* client_set = raxNew();
-    //mr_get_subscribed_clients(tc_tree, client_set, pubtopic);
-    // raxIterator siter;
-    // raxStart(&siter, client_set);
+    rax* client_set = raxNew();
+    mr_get_subscribed_clients(tc_tree, client_set, pubtopic);
+    raxIterator siter;
+    raxStart(&siter, client_set);
 
-    //raxSeekSet(&siter);
+    raxSeekSet(&siter);
 
-    // while(raxNextInSet(&siter)) {
-    //     uint64_t client = 0;
-    //     for (int i = 0; i < 8; i++) client += siter.key[i] << ((8 - i - 1) * 8);
-    //     printf(" %llu", client);
-    // }
+    while(raxNextInSet(&siter)) {
+        uint64_t client = 0;
+        for (int i = 0; i < 8; i++) client += siter.key[i] << ((8 - i - 1) * 8);
+        printf(" %llu", client);
+    }
 
-    // puts("");
+    puts("");
 
     // raxShowHex(client_set);
 

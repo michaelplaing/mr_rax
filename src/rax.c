@@ -2224,3 +2224,26 @@ int raxFreeSubtreeWithCallback(rax* rax, uint8_t* key, size_t len, void (*free_c
 int raxFreeSubtree(rax* rax, uint8_t* key, size_t len) {
     return raxFreeSubtreeWithCallback(rax, key, len, NULL);
 }
+
+// void *raxFind(rax *rax, unsigned char *s, size_t len) {
+//     raxNode *h;
+
+//     debugf("### Lookup: %.*s\n", (int)len, s);
+//     int splitpos = 0;
+//     size_t i = raxLowWalk(rax,s,len,&h,NULL,&splitpos, NULL);
+//     if (i != len || (h->iscompr && splitpos != 0) || !h->iskey)
+//         return raxNotFound;
+//     return raxGetData(h);
+// }
+
+void *raxFindBase(rax* rax, raxIterator* iter, uint8_t* base, size_t base_len) {
+    return raxFind(rax, base, base_len);
+}
+
+void *raxFindChild(rax* rax, raxIterator* iter, uint8_t* base, size_t base_len, uint8_t* token, size_t token_len) {
+    size_t len = base_len + token_len;
+    uint8_t s[len];
+    memcpy(s, base, base_len);
+    memcpy(s + base_len, token, token_len);
+    return raxFind(rax, s, len);
+}

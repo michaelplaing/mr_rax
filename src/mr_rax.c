@@ -291,10 +291,10 @@ static int mr_probe_subscriptions(
 ) {
     char topic_key2[max_len];
     char* token = tokenv[level];
+    strlcat(topic_key, token, max_len);
+    raxIterator iter;
 
     while (level < numtokens) {
-        strlcat(topic_key, token, max_len);
-
         snprintf(topic_key2, max_len, "%s#", topic_key);
         if (raxFind(tc_tree, (uint8_t*)topic_key2, strlen(topic_key2)) != raxNotFound) {
             mr_get_topic_clients(tc_tree, srax, (uint8_t*)topic_key2, strlen(topic_key2));
@@ -317,9 +317,9 @@ static int mr_probe_subscriptions(
         }
 
         token = tokenv[level + 1];
-        snprintf(topic_key2, max_len, "%s%s", topic_key, token);
-        if (raxFind(tc_tree, (uint8_t*)topic_key2, strlen(topic_key2)) != raxNotFound) {
-            if (level == (numtokens - 2)) mr_get_topic_clients(tc_tree, srax, (uint8_t*)topic_key2, strlen(topic_key2));
+        strlcat(topic_key, token, max_len);
+        if (raxFind(tc_tree, (uint8_t*)topic_key, strlen(topic_key)) != raxNotFound) {
+            if (level == (numtokens - 2)) mr_get_topic_clients(tc_tree, srax, (uint8_t*)topic_key, strlen(topic_key));
         }
         else {
             break; // no more possible matches

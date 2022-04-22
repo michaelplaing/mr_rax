@@ -95,7 +95,7 @@
  *
  */
 
-#define RAX_NODE_MAX_SIZE ((1<<29)-1)
+#define RAX_NODE_MAX_SIZE ((1<<28)-1)
 typedef struct raxNode {
     uint32_t iskey:1;     /* Does this node contain a key? */
     uint32_t isnull:1;    /* Associated value is NULL (don't store it). */
@@ -231,5 +231,7 @@ int raxRemoveWithFlag(rax* rax, uint8_t* s, size_t len, void** old, int* pisscal
 void raxFreeWithFlag(rax* rax);
 int raxFreeSubtreeWithCallback(rax* rax, uint8_t* key, size_t len, void (*free_callback)(void*));
 int raxFreeSubtree(rax* rax, uint8_t* key, size_t len);
+void *raxFindBase(rax* rax, raxIterator* iter, uint8_t* base, size_t base_len);
+void *raxFindChild(rax* rax, raxIterator* iter, uint8_t* base, size_t base_len, uint8_t* token, size_t token_len);
 
 #endif
