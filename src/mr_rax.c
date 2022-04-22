@@ -40,9 +40,9 @@ int mr_get_normalized_topic(const char* topic_in, char* topic, char* topic_key) 
     int numtokens = mr_tokenize_topic(topic2, tokenv);
 
     topic[0] = '\0';
-    topic_key[0] = '\0';
+    if (topic_key) topic_key[0] = '\0';
     for (int i = 0; i < numtokens; i++) {
-        strlcat(topic_key, tokenv[i], MAX_TOPIC_LEN);
+        if (topic_key) strlcat(topic_key, tokenv[i], MAX_TOPIC_LEN);
         strlcat(topic, tokenv[i], MAX_TOPIC_LEN);
         strcat(topic, "/");
     }
@@ -253,7 +253,7 @@ int mr_remove_client_subscriptions(rax* tc_tree, rax* client_tree, const uint64_
     return 0;
 }
 
-static int mr_get_topic_clients(rax* tc_tree, rax* srax, uint8_t* key, size_t key_len) {
+static int mr_get_topic_clients(rax* tc_tree, raxIterator* it, rax* srax, uint8_t* base, size_t base_len) {
     raxIterator iter;
     raxStart(&iter, tc_tree);
     raxIterator iter2;
@@ -287,32 +287,31 @@ static int mr_get_topic_clients(rax* tc_tree, rax* srax, uint8_t* key, size_t ke
 }
 
 static int mr_probe_subscriptions(
-    rax* tc_tree, rax* srax, const size_t max_len, char* topic_key, int level, char** tokenv, size_t numtokens
+    rax* tc_tree, raxIterator* iter, rax* srax, const size_t max_len, char* topic, int level, char** tokenv, size_t numtokens
 ) {
-    char topic_key2[max_len];
-    char* token = tokenv[level];
-    strlcat(topic_key, token, max_len);
-    raxIterator iter;
+    char test_key[max_len];
+    char* token;
 
     while (level < numtokens) {
-        snprintf(topic_key2, max_len, "%s#", topic_key);
-        if (raxFind(tc_tree, (uint8_t*)topic_key2, strlen(topic_key2)) != raxNotFound) {
-            mr_get_topic_clients(tc_tree, srax, (uint8_t*)topic_key2, strlen(topic_key2));
+        snprintf(test_key, max_len, "%s#", topic);
+        if (raxFindRelative(tc_tree, iter, (uint8_t*)test_key, strlen(test_key)) != raxNotFound) {
+            mr_get_topic_clients(tc_tree, iter, srax, (uint8_t*)test_key, strlen(test_key));
         }
 
         if (level == (numtokens - 1)) break; // only '#' is valid at this level
 
-        snprintf(topic_key2, max_len, "%s+", topic_key);
-        if (raxFind(tc_tree, (uint8_t*)topic_key2, strlen(topic_key2)) != raxNotFound) {
+        snprintf(test_key, max_len, "%s+", topic);
+        if (raxFindRelative(tc_tree, iter, (uint8_t*)test_key, strlen(test_key)) != raxNotFound) {
             if (level == (numtokens - 2)) {
-                mr_get_topic_clients(tc_tree, srax, (uint8_t*)topic_key2, strlen(topic_key2));
+                mr_get_topic_clients(tc_tree, iter, srax, (uint8_t*)test_key, strlen(test_key));
             }
             else {
                 char *token2v[numtokens];
                 for (int i = 0; i < numtokens; i++) token2v[i] = tokenv[i];
                 token2v[level + 1] = "+";
-                topic_key2[strlen(topic_key2) - 1] = '\0'; // trim the '+'
-                mr_probe_subscriptions(tc_tree, srax, max_len, topic_key2, level + 1, token2v, numtokens);
+                //raxIterator* iter2 = raxIteratorDup(&iter);
+                mr_probe_subscriptions(tc_tree, iter, srax, max_len, test_key, level + 1, token2v, numtokens);
+                //raxStop(iter2);
             }
         }
 
@@ -328,6 +327,7 @@ static int mr_probe_subscriptions(
         level++;
     }
 
+    raxStop(&iter);
     return 0;
 }
 
@@ -335,15 +335,21 @@ int mr_get_subscribed_clients(rax* tc_tree, rax* srax, const char* pubtopic) {
     char* tokenv[MAX_TOKENS];
     size_t ptlen = strlen(pubtopic);
     char topic[ptlen + 3];
-    char topic_key[ptlen + 3];
-    mr_get_normalized_topic(pubtopic, topic, topic_key);
+    mr_get_normalized_topic(pubtopic, topic, NULL);
     size_t tlen = strlen(topic);
     char topic3[tlen + 1];
     strlcpy(topic3, topic, tlen + 1);
     size_t numtokens = mr_tokenize_topic(topic3, tokenv); // modifies topic3 and points into it from tokenv
-    topic_key[0] = '\0';
-    int level = 0;
-    mr_probe_subscriptions(tc_tree, srax, tlen + 1, topic_key, level, tokenv, numtokens);
+    raxIterator iter;
+    raxStart(&iter, tc_tree);
+    strlcpy(topic, tokenv[0], 2);
+
+    if (raxFindRelative(tc_tree, &iter, topic, 1) == raxNotFound) {
+        raxStop(&iter);
+        return 0;
+    }
+
+    mr_probe_subscriptions(tc_tree, &iter, srax, tlen + 1, topic, 0, tokenv, numtokens);
     return 0;
 }
 

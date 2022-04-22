@@ -2236,7 +2236,7 @@ int raxFreeSubtree(rax* rax, uint8_t* key, size_t len) {
 //     return raxGetData(h);
 // }
 
-void *raxFindBase(rax* rax, raxIterator* iter, uint8_t* base, size_t base_len) {
+void *raxFindRelative(rax* rax, raxIterator* iter, uint8_t* base, size_t base_len) {
     return raxFind(rax, base, base_len);
 }
 
@@ -2246,4 +2246,16 @@ void *raxFindChild(rax* rax, raxIterator* iter, uint8_t* base, size_t base_len, 
     memcpy(s, base, base_len);
     memcpy(s + base_len, token, token_len);
     return raxFind(rax, s, len);
+}
+
+raxIterator* raxIteratorDup(raxIterator* piter) {
+    raxIterator iterdup;
+    memcpy(&iterdup, piter, sizeof(raxIterator));
+
+    if (piter->stack.stack != piter->stack.static_items) {
+        iterdup.stack.stack = rax_malloc(sizeof(void*) * piter->stack.maxitems);
+        memcpy(iterdup.stack.stack, piter->stack.static_items, sizeof(void*) * piter->stack.maxitems);
+    };
+
+    return &iterdup;
 }
