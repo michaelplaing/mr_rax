@@ -187,6 +187,8 @@ typedef struct raxIterator {
     raxNode *node;          /* Current node. Only for unsafe iteration. */
     raxNode *stop_node; // mr_rax additions 20220401 ml: terminate ascent
     raxStack stack;         /* Stack used for unsafe iteration. */
+    size_t covpos; // current position in the vector of child offsets
+    uint8_t child_offsetv[256];
     raxNodeCallback node_cb; /* Optional node callback. Normally set to NULL. */
 } raxIterator;
 

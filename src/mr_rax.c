@@ -284,15 +284,11 @@ static int mr_get_topic_clients(rax* tc_tree, raxIterator* iter, rax* srax, uint
 static int mr_probe_subscriptions(
     rax* tc_tree, raxIterator* iter, rax* srax, const size_t max_len, char* topic, int level, char** tokenv, size_t numtokens
 ) {
-    // printf("\nmr_probe_subscriptions start:: topic: '%s'; level: %d; tokenv: ", topic, level);
-    // for (int i = 0; i < numtokens; i++) printf("'%s' ", tokenv[i]);
-    // puts("");
     char test_key[max_len];
     char* token;
 
     while (level < numtokens) {
         snprintf(test_key, max_len, "%s#", topic);
-        // printf("mr_probe_subscriptions #:: level: %d; topic: '%s'; test_key: '%s'\n", level, topic, test_key);
         if (raxFindRelative(tc_tree, iter, (uint8_t*)test_key, strlen(test_key)) != raxNotFound) {
             mr_get_topic_clients(tc_tree, iter, srax, (uint8_t*)test_key, strlen(test_key));
         }
@@ -300,7 +296,6 @@ static int mr_probe_subscriptions(
         if (level == (numtokens - 1)) break; // only '#' is valid at this level
 
         snprintf(test_key, max_len, "%s+", topic);
-        // printf("mr_probe_subscriptions +:: level: %d; topic: '%s'; test_key: '%s'\n", level, topic, test_key);
         if (raxFindRelative(tc_tree, iter, (uint8_t*)test_key, strlen(test_key)) != raxNotFound) {
             if (level == (numtokens - 2)) {
                 mr_get_topic_clients(tc_tree, iter, srax, (uint8_t*)test_key, strlen(test_key));
@@ -309,16 +304,13 @@ static int mr_probe_subscriptions(
                 char *token2v[numtokens];
                 for (int i = 0; i < numtokens; i++) token2v[i] = tokenv[i];
                 token2v[level + 1] = "+";
-                //raxIterator* iter2 = raxIteratorDup(&iter);
                 mr_probe_subscriptions(tc_tree, iter, srax, max_len, test_key, level + 1, token2v, numtokens);
-                //raxStop(iter2);
             }
         }
 
         token = tokenv[level + 1];
         strlcat(topic, token, max_len);
         strlcpy(test_key, topic, max_len);
-        // printf("mr_probe_subscriptions <token>:: level: %d; token: '%s'; topic: '%s'; test_key: '%s'\n", level, token, topic, test_key);
         if (raxFindRelative(tc_tree, iter, (uint8_t*)test_key, strlen(test_key)) != raxNotFound) {
             if (level == (numtokens - 2)) {
                 mr_get_topic_clients(tc_tree, iter, srax, (uint8_t*)test_key, strlen(topic));
@@ -331,7 +323,6 @@ static int mr_probe_subscriptions(
         level++;
     }
 
-    // puts("");
     return 0;
 }
 
@@ -347,7 +338,6 @@ int mr_get_subscribed_clients(rax* tc_tree, rax* srax, const char* pubtopic) {
     raxIterator iter;
     raxStart(&iter, tc_tree);
     strlcpy(topic, tokenv[0], tlen + 1);
-    // printf("mr_get_subscribed_clients:: pubtopic: '%s'; topic: '%s'\n", pubtopic, topic);
 
     if (raxFindRelative(tc_tree, &iter, (uint8_t*)topic, strlen(topic)) != raxNotFound) {
         mr_probe_subscriptions(tc_tree, &iter, srax, tlen + 1, topic, 0, tokenv, numtokens);
