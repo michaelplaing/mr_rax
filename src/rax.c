@@ -2236,26 +2236,26 @@ int raxFreeSubtree(rax* rax, uint8_t* key, size_t len) {
 //     return raxGetData(h);
 // }
 
-void *raxFindRelative(rax* rax, raxIterator* iter, uint8_t* base, size_t base_len) {
-    return raxFind(rax, base, base_len);
+void *raxFindRelative(rax* rax, raxIterator* iter, uint8_t* key, size_t key_len) {
+    return raxFind(rax, key, key_len);
 }
 
-void *raxFindChild(rax* rax, raxIterator* iter, uint8_t* base, size_t base_len, uint8_t* token, size_t token_len) {
-    size_t len = base_len + token_len;
-    uint8_t s[len];
-    memcpy(s, base, base_len);
-    memcpy(s + base_len, token, token_len);
-    return raxFind(rax, s, len);
-}
+// void *raxFindChild(rax* rax, raxIterator* iter, uint8_t* base, size_t base_len, uint8_t* token, size_t token_len) {
+//     size_t len = base_len + token_len;
+//     uint8_t s[len];
+//     memcpy(s, base, base_len);
+//     memcpy(s + base_len, token, token_len);
+//     return raxFind(rax, s, len);
+// }
 
 raxIterator* raxIteratorDup(raxIterator* piter) {
-    raxIterator iterdup;
-    memcpy(&iterdup, piter, sizeof(raxIterator));
+    raxIterator* piterdup = rax_malloc(sizeof(raxIterator));
+    memcpy(piterdup, piter, sizeof(raxIterator));
 
     if (piter->stack.stack != piter->stack.static_items) {
-        iterdup.stack.stack = rax_malloc(sizeof(void*) * piter->stack.maxitems);
-        memcpy(iterdup.stack.stack, piter->stack.static_items, sizeof(void*) * piter->stack.maxitems);
+        piterdup->stack.stack = rax_malloc(sizeof(void*) * piter->stack.maxitems);
+        memcpy(piterdup->stack.stack, piter->stack.stack, sizeof(void*) * piter->stack.maxitems);
     };
 
-    return &iterdup;
+    return piterdup;
 }

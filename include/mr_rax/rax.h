@@ -231,8 +231,8 @@ int raxRemoveWithFlag(rax* rax, uint8_t* s, size_t len, void** old, int* pisscal
 void raxFreeWithFlag(rax* rax);
 int raxFreeSubtreeWithCallback(rax* rax, uint8_t* key, size_t len, void (*free_callback)(void*));
 int raxFreeSubtree(rax* rax, uint8_t* key, size_t len);
-void *raxFindRelative(rax* rax, raxIterator* iter, uint8_t* base, size_t base_len);
-void *raxFindChild(rax* rax, raxIterator* iter, uint8_t* base, size_t base_len, uint8_t* token, size_t token_len);
+void *raxFindRelative(rax* rax, raxIterator* iter, uint8_t* key, size_t key_len);
+// void *raxFindChild(rax* rax, raxIterator* iter, uint8_t* base, size_t base_len, uint8_t* token, size_t token_len);
 raxIterator* raxIteratorDup(raxIterator* piter);
 
 #endif

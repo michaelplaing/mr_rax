@@ -253,47 +253,46 @@ int mr_remove_client_subscriptions(rax* tc_tree, rax* client_tree, const uint64_
     return 0;
 }
 
-static int mr_get_topic_clients(rax* tc_tree, raxIterator* it, rax* srax, uint8_t* base, size_t base_len) {
-    raxIterator iter;
-    raxStart(&iter, tc_tree);
-    raxIterator iter2;
-    raxStart(&iter2, tc_tree);
-
+static int mr_get_topic_clients(rax* tc_tree, raxIterator* iter, rax* srax, uint8_t* key, size_t key_len) {
     // get regular subs
     key[key_len] = client_mark;
-    raxSeekChildren(&iter, key, key_len + 1);
-    while(raxNextChild(&iter)) raxTryInsert(srax, iter.key + iter.key_len - 8, 8, NULL, NULL);
+    raxSeekChildren(iter, key, key_len + 1);
+    while(raxNextChild(iter)) raxTryInsert(srax, iter->key + iter->key_len - 8, 8, NULL, NULL);
 
     // get shared subs
     key[key_len] = shared_mark;
-    raxSeekChildren(&iter, key, key_len + 1);
+    raxSeekChildren(iter, key, key_len + 1);
 
-    while(raxNextChild(&iter)) { // randomly pick one client per share
-        raxSeekChildren(&iter2, iter.key, iter.key_len);
+    while(raxNextChild(iter)) { // randomly pick one client per share
+        uint8_t* share_key = iter->key;
+        size_t share_key_len = iter->key_len;
+        raxSeekChildren(iter, share_key, share_key_len);
         int count;
-        for (count = 0; raxNextChild(&iter2); count++);
+        for (count = 0; raxNextChild(iter); count++);
 
         if (count) {
             int choice = arc4random() % count;
-            raxSeekChildren(&iter2, iter.key, iter.key_len);
-            for (int i = 0; i < (choice + 1) ; i++) raxNextChild(&iter2);
-            raxTryInsert(srax, iter2.key + iter2.key_len - 8, 8, NULL, NULL);
+            raxSeekChildren(iter, share_key, share_key_len);
+            for (int i = 0; i < (choice + 1); i++) raxNextChild(iter);
+            raxTryInsert(srax, iter->key + iter->key_len - 8, 8, NULL, NULL);
         }
     }
 
-    raxStop(&iter2);
-    raxStop(&iter);
     return 0;
 }
 
 static int mr_probe_subscriptions(
     rax* tc_tree, raxIterator* iter, rax* srax, const size_t max_len, char* topic, int level, char** tokenv, size_t numtokens
 ) {
+    // printf("\nmr_probe_subscriptions start:: topic: '%s'; level: %d; tokenv: ", topic, level);
+    // for (int i = 0; i < numtokens; i++) printf("'%s' ", tokenv[i]);
+    // puts("");
     char test_key[max_len];
     char* token;
 
     while (level < numtokens) {
         snprintf(test_key, max_len, "%s#", topic);
+        // printf("mr_probe_subscriptions #:: level: %d; topic: '%s'; test_key: '%s'\n", level, topic, test_key);
         if (raxFindRelative(tc_tree, iter, (uint8_t*)test_key, strlen(test_key)) != raxNotFound) {
             mr_get_topic_clients(tc_tree, iter, srax, (uint8_t*)test_key, strlen(test_key));
         }
@@ -301,6 +300,7 @@ static int mr_probe_subscriptions(
         if (level == (numtokens - 1)) break; // only '#' is valid at this level
 
         snprintf(test_key, max_len, "%s+", topic);
+        // printf("mr_probe_subscriptions +:: level: %d; topic: '%s'; test_key: '%s'\n", level, topic, test_key);
         if (raxFindRelative(tc_tree, iter, (uint8_t*)test_key, strlen(test_key)) != raxNotFound) {
             if (level == (numtokens - 2)) {
                 mr_get_topic_clients(tc_tree, iter, srax, (uint8_t*)test_key, strlen(test_key));
@@ -316,9 +316,13 @@ static int mr_probe_subscriptions(
         }
 
         token = tokenv[level + 1];
-        strlcat(topic_key, token, max_len);
-        if (raxFind(tc_tree, (uint8_t*)topic_key, strlen(topic_key)) != raxNotFound) {
-            if (level == (numtokens - 2)) mr_get_topic_clients(tc_tree, srax, (uint8_t*)topic_key, strlen(topic_key));
+        strlcat(topic, token, max_len);
+        strlcpy(test_key, topic, max_len);
+        // printf("mr_probe_subscriptions <token>:: level: %d; token: '%s'; topic: '%s'; test_key: '%s'\n", level, token, topic, test_key);
+        if (raxFindRelative(tc_tree, iter, (uint8_t*)test_key, strlen(test_key)) != raxNotFound) {
+            if (level == (numtokens - 2)) {
+                mr_get_topic_clients(tc_tree, iter, srax, (uint8_t*)test_key, strlen(topic));
+            }
         }
         else {
             break; // no more possible matches
@@ -327,7 +331,7 @@ static int mr_probe_subscriptions(
         level++;
     }
 
-    raxStop(&iter);
+    // puts("");
     return 0;
 }
 
@@ -342,14 +346,14 @@ int mr_get_subscribed_clients(rax* tc_tree, rax* srax, const char* pubtopic) {
     size_t numtokens = mr_tokenize_topic(topic3, tokenv); // modifies topic3 and points into it from tokenv
     raxIterator iter;
     raxStart(&iter, tc_tree);
-    strlcpy(topic, tokenv[0], 2);
+    strlcpy(topic, tokenv[0], tlen + 1);
+    // printf("mr_get_subscribed_clients:: pubtopic: '%s'; topic: '%s'\n", pubtopic, topic);
 
-    if (raxFindRelative(tc_tree, &iter, topic, 1) == raxNotFound) {
-        raxStop(&iter);
-        return 0;
+    if (raxFindRelative(tc_tree, &iter, (uint8_t*)topic, strlen(topic)) != raxNotFound) {
+        mr_probe_subscriptions(tc_tree, &iter, srax, tlen + 1, topic, 0, tokenv, numtokens);
     }
 
-    mr_probe_subscriptions(tc_tree, &iter, srax, tlen + 1, topic, 0, tokenv, numtokens);
+    raxStop(&iter);
     return 0;
 }
 
