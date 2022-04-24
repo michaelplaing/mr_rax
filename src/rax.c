@@ -196,7 +196,7 @@ raxNode *raxNewNode(size_t children, int datafield) {
     node->isnull = 0;
     node->iscompr = 0;
     node->size = children;
-    node->memo = 0;
+    // node->memo = 0;
     return node;
 }
 
@@ -507,13 +507,37 @@ static inline size_t raxLowWalk(
     return i;
 }
 
-static inline size_t raxLowWalkSeek(
-    rax *rax, unsigned char *s, size_t len, raxNode **stopnode, int *splitpos, raxStack *ts
-) {
-    raxNode *h = rax->head;
+int raxIteratorPushChildOffset(raxIterator *it, uint8_t child_offset) {
+    if (it->cpos == it->cpos_max) {
+        uint8_t *old = (it->child_offsetv == it->child_offsetv_static) ? NULL : it->child_offsetv;
+        size_t new_max = it->cpos_max * 2;
+        it->child_offsetv = rax_realloc(old, new_max);
+        if (it->child_offsetv == NULL) {
+            it->child_offsetv = (!old) ? it->child_offsetv_static : old;
+            errno = ENOMEM;
+            return 0;
+        }
+        if (old == NULL) memcpy(it->child_offsetv, it->child_offsetv_static, it->cpos_max);
+        it->cpos_max = new_max;
+    }
+
+    it->child_offsetv[it->cpos] = child_offset;
+    it->cpos++;
+    return 1;
+}
+
+ uint8_t raxIteratorPopChildOffset(raxIterator *it) {
+    if (it->cpos == 0) return 0;
+    it->cpos--;
+    return it->child_offsetv[it->cpos];
+}
+
+static inline size_t raxLowWalkSeek(unsigned char *s, size_t len, int *splitpos, raxIterator* it) {
+    raxNode *h = it->rt->head;
 
     size_t i = 0; /* Position in the string. */
     size_t j = 0; /* Position in the node children (or bytes if compressed).*/
+    size_t k = 0;
     int gt = 0;
     while(h->size && i < len) {
         debugnode("Lookup current node",h);
@@ -521,42 +545,46 @@ static inline size_t raxLowWalkSeek(
 
         if (h->iscompr) {
             for (j = 0; j < h->size && i < len; j++, i++) {
-                if (v[j] != s[i]) break;
-            }
-            if (j != h->size) break;
+                if (v[j] != s[i]) break; // for
+            } // end for
+            if (j != h->size) break; // while
         } else {
             for (j = 0; j < h->size; j++) {
-                if (v[j] == s[i]) break;
+                if (v[j] == s[i]) break; // for
                 if (v[j] > s[i]) {
-                    h->memo = j;
                     gt = 1;
-                    break;
+                    break; // for
                 }
-            }
+            } // end for
             if (gt) {
+                k = j;
                 j = h->size;
-                break;
+                break; // while
             }
             if (j == h->size) {
-                h->memo = j;
-                break;
+                k = j;
+                break; // while
             }
             i++;
         }
 
         if (h->iscompr) j = 0; /* Compressed node only child is at index 0. */
-        h->memo = j;
-        raxStackPush(ts,h); /* Save stack of parent nodes. */
+        // h->memo = j;
+        raxIteratorPushChildOffset(it, j); // push j to offsetv
+        it->child_offset = 0; // set current_offset to 0
+        raxStackPush(&it->stack,h); /* Save stack of parent nodes. */
         raxNode **children = raxNodeFirstChildPtr(h);
         memcpy(&h,children+j,sizeof(h));
         j = 0; /* If the new node is compressed and we do not
                   iterate again (since i == l) set the split
                   position to 0 to signal this node represents
                   the searched key. */
-    }
+    } // end while
     debugnode("Lookup stop node is",h);
-    *stopnode = h;
+    it->node = h; // set current node to h
     if (h->iscompr) *splitpos = j;
+    // h->memo = k;
+    it->child_offset = k; // set current_offset to k
     return i;
 }
 
@@ -1338,6 +1366,9 @@ void raxStart(raxIterator *it, rax *rt) {
     it->key_max = RAX_ITER_STATIC_LEN;
     it->data = NULL;
     it->node_cb = NULL;
+    it->cpos = 0;
+    it->cpos_max = RAX_ITER_STATIC_LEN;
+    it->child_offsetv = it->child_offsetv_static;
     raxStackInit(&it->stack);
 }
 
@@ -1405,7 +1436,9 @@ int raxIteratorNextStep(raxIterator *it, int noup) {
             /* Seek the lexicographically smaller key in this subtree, which
              * is the first one found always going torwards the first child
              * of every successive node. */
-            it->node->memo = 0; // set parent offset to current child
+            // it->node->memo = 0; // set parent offset to current child
+            raxIteratorPushChildOffset(it, 0); // push 0 to offsetv
+            it->child_offset = 0; // set current_offset to 0
             if (!raxStackPush(&it->stack,it->node)) return 0;
             raxNode **cp = raxNodeFirstChildPtr(it->node);
             if (!raxIteratorAddChars(it,it->node->data,
@@ -1441,9 +1474,13 @@ int raxIteratorNextStep(raxIterator *it, int noup) {
                 }
                 /* If there are no children at the current node, try parent's
                  * next child. */
-                //unsigned char prevchild = it->key[it->key_len-1];
+                // if (it->node->memo != it->child_offset) {
+                //     printf("noup: %d; it->node->memo: %d; it->child_offset: %d\n", noup, it->node->memo, it->child_offset);
+                // }
+                // assert(it->node->memo == it->child_offset);
                 if (!noup) {
                     it->node = raxStackPop(&it->stack);
+                    it->child_offset = raxIteratorPopChildOffset(it);
                 } else {
                     noup = 0;
                 }
@@ -1454,14 +1491,26 @@ int raxIteratorNextStep(raxIterator *it, int noup) {
 
                 /* Try visiting the next child if there was at least one
                  * additional child. */
+                // if (it->node->memo != it->child_offset) {
+                //     printf(
+                //         "it->node->memo: %d; it->child_offset: %d; it->cpos: %zu\n",
+                //         it->node->memo, it->child_offset, it->cpos);
+                // }
+                // assert(it->node->memo == it->child_offset);
                 if (!it->node->iscompr && it->node->size > (old_noup ? 0 : 1)) {
                     debugf("it->node->size: %d\n", it->node->size);
-                    if (it->node->memo + (old_noup ? 0 : 1) != it->node->size) {
-                        debugf("Set cp: it->node->memo + (old_noup ? 0 : 1): %d\n", it->node->memo + (old_noup ? 0 : 1));
-                        it->node->memo += (old_noup ? 0 : 1); // set parent offset to current child
-                        raxNode **cp = raxNodeFirstChildPtr(it->node) + it->node->memo;
+                    // if (it->node->memo + (old_noup ? 0 : 1) != it->node->size) {
+                    if (it->child_offset + (old_noup ? 0 : 1) != it->node->size) {
+                        // debugf("Set cp: it->node->memo + (old_noup ? 0 : 1): %d\n", it->node->memo + (old_noup ? 0 : 1));
+                        // it->node->memo += (old_noup ? 0 : 1); // set parent offset to current child
+                        it->child_offset += (old_noup ? 0 : 1); // set parent offset to current child
+                        // raxNode **cp = raxNodeFirstChildPtr(it->node) + it->node->memo;
+                        raxNode **cp = raxNodeFirstChildPtr(it->node) + it->child_offset;
                         debugf("SCAN found a new node\n");
-                        raxIteratorAddChars(it,it->node->data+it->node->memo,1);
+                        // raxIteratorAddChars(it,it->node->data+it->node->memo,1);
+                        raxIteratorAddChars(it,it->node->data + it->child_offset, 1);
+                        raxIteratorPushChildOffset(it, it->child_offset);
+                        it->child_offset = 0; // set current_offset to 0
                         if (!raxStackPush(&it->stack,it->node)) return 0;
                         memcpy(&it->node,cp,sizeof(it->node));
                         /* Call the node callback if any, and replace the node
@@ -1487,11 +1536,15 @@ int raxSeekGreatest(raxIterator *it) {
         if (it->node->iscompr) {
             if (!raxIteratorAddChars(it,it->node->data,
                 it->node->size)) return 0;
-            it->node->memo = 0; // set parent offset to current child
+            // it->node->memo = 0; // set parent offset to current child
+            raxIteratorPushChildOffset(it, 0);
+            it->child_offset = 0; // set parent offset to current child
         } else {
             if (!raxIteratorAddChars(it,it->node->data+it->node->size-1,1))
                 return 0;
-            it->node->memo = it->node->size - 1; // set parent offset to current child
+            // it->node->memo = it->node->size - 1; // set parent offset to current child
+            raxIteratorPushChildOffset(it, it->node->size - 1);
+            it->child_offset = it->node->size - 1;
         }
         raxNode **cp = raxNodeLastChildPtr(it->node);
         if (!raxStackPush(&it->stack,it->node)) return 0;
@@ -1532,6 +1585,7 @@ int raxIteratorPrevStep(raxIterator *it, int noup) {
         //unsigned char prevchild = it->key[it->key_len-1];
         if (!noup) {
             it->node = raxStackPop(&it->stack);
+            it->child_offset = raxIteratorPopChildOffset(it);
         } else {
             noup = 0;
         }
@@ -1544,12 +1598,18 @@ int raxIteratorPrevStep(raxIterator *it, int noup) {
         /* Try visiting the prev child if there is at least one
          * child. */
         if (!it->node->iscompr && it->node->size > (old_noup ? 0 : 1)) {
-            if (it->node->memo != 0) {
-                it->node->memo -= 1; // set parent offset to current child
-                raxNode **cp = raxNodeFirstChildPtr(it->node) + it->node->memo;
+            // if (it->node->memo != 0) {
+            if (it->child_offset != 0) {
+                // it->node->memo -= 1; // set parent offset to current child
+                it->child_offset -= 1;
+                raxIteratorPushChildOffset(it, it->child_offset);
+                // it->child_offset = 0;
+                // raxNode **cp = raxNodeFirstChildPtr(it->node) + it->node->memo;
+                raxNode **cp = raxNodeFirstChildPtr(it->node) + it->child_offset;
                 debugf("SCAN found a new node\n");
                 /* Enter the node we just found. */
-                if (!raxIteratorAddChars(it,it->node->data+it->node->memo,1)) return 0;
+                //if (!raxIteratorAddChars(it,it->node->data+it->node->memo,1)) return 0;
+                if (!raxIteratorAddChars(it,it->node->data + it->child_offset, 1)) return 0;
                 if (!raxStackPush(&it->stack,it->node)) return 0;
                 memcpy(&it->node,cp,sizeof(it->node));
                 /* Seek sub-tree max. */
@@ -1619,7 +1679,7 @@ int raxSeekEle(raxIterator *it, const char *op, unsigned char *ele, size_t len) 
      * perform a lookup, and later invoke the prev/next key code that
      * we already use for iteration. */
     int splitpos = 0;
-    size_t i = raxLowWalkSeek(it->rt,ele,len,&it->node,&splitpos,&it->stack);
+    size_t i = raxLowWalkSeek(ele,len,&splitpos, it);
 
     /* Return OOM on incomplete stack info. */
     if (it->stack.oom) return 0;
@@ -1732,6 +1792,8 @@ int raxSeek(raxIterator *it, const char *op, unsigned char *ele, size_t len) {
     it->key_len = 0;
     it->node = NULL;
     it->stop_node = it->rt->head;
+    it->child_offset = 0;
+    it->cpos = 0;
     return raxSeekEle(it, op, ele, len);
 }
 
@@ -2000,6 +2062,7 @@ int raxIteratorNextChildStep(raxIterator* it) {
 
     while(1) { // ascend/descend repeatedly until the next child key is found
         it->node = raxStackPop(&it->stack); // ascend
+        it->child_offset = raxIteratorPopChildOffset(it);
 
         if (it->node == it->stop_node) { // have we popped above the seeked key?
             it->flags |= RAX_ITER_EOF;
@@ -2014,10 +2077,15 @@ int raxIteratorNextChildStep(raxIterator* it) {
 
         while(!it->node->iscompr && it->node->size > 1) { // find the next child node; exit if no children
             // node is not compressed ∴ size is 256 or less
-            if (it->node->memo + 1 != (it->node->size)) { // found a child subtree to explore
-                it->node->memo++; // increment offset to 1st child char
-                if (!raxIteratorAddChars(it, it->node->data + it->node->memo, 1)) return 0;
-                raxNode** cp = raxNodeFirstChildPtr(it->node) + it->node->memo;
+            // if (it->node->memo + 1 != (it->node->size)) { // found a child subtree to explore
+                // it->node->memo++; // increment offset to 1st child char
+                // if (!raxIteratorAddChars(it, it->node->data + it->node->memo, 1)) return 0;
+                // raxNode** cp = raxNodeFirstChildPtr(it->node) + it->node->memo;
+            if (it->child_offset + 1 != (it->node->size)) { // found a child subtree to explore
+                it->child_offset++; // increment offset to 1st child char
+                raxIteratorPushChildOffset(it, it->child_offset);
+                if (!raxIteratorAddChars(it, it->node->data + it->child_offset, 1)) return 0;
+                raxNode** cp = raxNodeFirstChildPtr(it->node) + it->child_offset;
                 if (!raxStackPush(&it->stack, it->node)) return 0;
                 memcpy(&it->node, cp, sizeof(it->node)); // make new child node current
 
@@ -2030,7 +2098,8 @@ int raxIteratorNextChildStep(raxIterator* it) {
                     int children = it->node->iscompr ? 1 : it->node->size;
 
                     if (children) {
-                        it->node->memo = 0; // offset to current child
+                        // it->node->memo = 0; // offset to current child
+                        it->child_offset = 0; // offset to current child
                         if (!raxStackPush(&it->stack, it->node)) return 0;
                         cp = raxNodeFirstChildPtr(it->node);
 
@@ -2093,7 +2162,9 @@ int raxSeekChildren(raxIterator* it, uint8_t* key, size_t len) {
         int children = it->node->iscompr ? 1 : it->node->size;
 
         if (children) { // descend trying 1st children
-            it->node->memo = 0; // set offset to current child
+            // it->node->memo = 0; // set offset to current child
+            it->child_offset = 0; // set offset to current child
+            raxIteratorPushChildOffset(it, 0);
             if (!raxStackPush(&it->stack, it->node)) return 0;
             raxNode** cp = raxNodeFirstChildPtr(it->node);
 
@@ -2239,14 +2310,6 @@ int raxFreeSubtree(rax* rax, uint8_t* key, size_t len) {
 void *raxFindRelative(rax* rax, raxIterator* iter, uint8_t* key, size_t key_len) {
     return raxFind(rax, key, key_len);
 }
-
-// void *raxFindChild(rax* rax, raxIterator* iter, uint8_t* base, size_t base_len, uint8_t* token, size_t token_len) {
-//     size_t len = base_len + token_len;
-//     uint8_t s[len];
-//     memcpy(s, base, base_len);
-//     memcpy(s + base_len, token, token_len);
-//     return raxFind(rax, s, len);
-// }
 
 raxIterator* raxIteratorDup(raxIterator* piter) {
     raxIterator* piterdup = rax_malloc(sizeof(raxIterator));

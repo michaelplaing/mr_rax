@@ -101,9 +101,10 @@ typedef struct raxNode {
     uint32_t isnull:1;    /* Associated value is NULL (don't store it). */
     uint32_t iscompr:1;   /* Node is compressed. */
     uint32_t isscalar:1;  /* Associated value is a scalar not an allocated pointer. */
-    uint32_t reserved:4;
-    uint32_t memo:8; // ml 20220401: used for next child offset
-    uint32_t size:16;     /* Number of children, or compressed string len. */
+    // uint32_t reserved:4;
+    // uint32_t memo:8; // ml 20220401: used for next child offset
+    // uint32_t size:16;     /* Number of children, or compressed string len. */
+    uint32_t size:28;     /* Number of children, or compressed string len. */
     /* Data layout is as follows:
      *
      * If node is not compressed we have 'size' bytes, one for each children
@@ -187,8 +188,11 @@ typedef struct raxIterator {
     raxNode *node;          /* Current node. Only for unsafe iteration. */
     raxNode *stop_node; // mr_rax additions 20220401 ml: terminate ascent
     raxStack stack;         /* Stack used for unsafe iteration. */
-    size_t covpos; // current position in the vector of child offsets
-    uint8_t child_offsetv[256];
+    int child_offset;
+    size_t cpos_max;
+    size_t cpos; // current position in the vector of child offsets
+    uint8_t* child_offsetv;
+    uint8_t child_offsetv_static[RAX_ITER_STATIC_LEN];
     raxNodeCallback node_cb; /* Optional node callback. Normally set to NULL. */
 } raxIterator;
 
@@ -234,7 +238,6 @@ void raxFreeWithFlag(rax* rax);
 int raxFreeSubtreeWithCallback(rax* rax, uint8_t* key, size_t len, void (*free_callback)(void*));
 int raxFreeSubtree(rax* rax, uint8_t* key, size_t len);
 void *raxFindRelative(rax* rax, raxIterator* iter, uint8_t* key, size_t key_len);
-// void *raxFindChild(rax* rax, raxIterator* iter, uint8_t* base, size_t base_len, uint8_t* token, size_t token_len);
 raxIterator* raxIteratorDup(raxIterator* piter);
 
 #endif

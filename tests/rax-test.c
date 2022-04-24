@@ -908,7 +908,7 @@ void benchmark(void) {
  *
  * This test is disabled by default because it uses a lot of memory. */
 int testHugeKey(void) {
-    size_t max_keylen = ((1<<29)-1) + 100;
+    size_t max_keylen = ((1<<28)-1) + 100;
     unsigned char *key = malloc(max_keylen);
     if (key == NULL) goto oom;
 
