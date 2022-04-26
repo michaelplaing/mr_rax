@@ -54,19 +54,21 @@ int topic_fun(void) {
         "foo/bar:1;2",
         "foo/bar/:3",
         "$share/baz/foo/bar:4;5",
-        "+/bar:6",
-        "foo/#:7;1",
+        // "$share/bam/foo/bar:9;10;11",
+        "$share/bazzle/foo/bar:6",
+        "+/bar:7",
+        "foo/#:8;1",
         "$SYS/foo/#:1",
-        "酒/吧:7",
-        "A:9",
-        "B:9",
-        "C:9",
-        "C/V:9",
-        "C/W:9",
-        "C/Y:9",
-        "C/Z:9",
-        "D:9",
-        "E:9",
+        "酒/吧:8",
+        // "A:9",
+        // "B:9",
+        // "C:9",
+        // "C/V:9",
+        // "C/W:9",
+        // "C/Y:9",
+        // "C/Z:9",
+        // "D:9",
+        // "E:9",
     };
 
     size_t numtopics = sizeof(subtopicclientv) / sizeof(subtopicclientv[0]);
@@ -128,15 +130,15 @@ int topic_fun(void) {
     //mr_remove_client_data(tc_tree, client_tree, 1);
 
     raxShowHex(tc_tree);
-    //raxShowHex(client_tree);
+    raxShowHex(client_tree);
 
-    raxIterator titer;
-    raxStart(&titer, tc_tree);
-    uint8_t val[4] = {'@','C','A'};
-    raxSeek(&titer, "<", val, 3);
-    raxNext(&titer);
-    printf("Found:: Key: %.*s; len: %zu\n", (int)titer.key_len, titer.key, titer.key_len);
-    raxStop(&titer);
+    // raxIterator titer;
+    // raxStart(&titer, tc_tree);
+    // uint8_t val[4] = {'@','C','A'};
+    // raxSeek(&titer, "<", val, 3);
+    // raxNext(&titer);
+    // printf("Found:: Key: %.*s; len: %zu\n", (int)titer.key_len, titer.key, titer.key_len);
+    // raxStop(&titer);
 
     printf("get matching clients for '%s'\n", pubtopic);
 

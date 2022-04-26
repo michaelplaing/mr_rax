@@ -38,57 +38,62 @@ The internal TC tree is composed of:
 There is no separator between the tokens.
 
 Then for normal subscription clients:
-- ``0xef`` as the Client Mark (invalid UTF-8); and
+- ``0xff`` as the Client Mark (invalid UTF-8); and
 - 8 bytes of Client ID in big endian (network) order.
 
 And for shared subscription clients:
-- ``0xff`` as the Shared Mark (invalid UTF-8);
-- the share name; and
+- ``0xef`` as the Shared Mark (invalid UTF-8);
+- the share name;
+- ``0xff`` as the Client Mark; and
 - 8 bytes of Client ID in big endian order.
 
 ### Subscription examples:
 
 If the subscription topic is ``foo/bar`` and the Client ID is ``1``, then the normalized entry in the TC tree would be:
 
-``@foobar<0xef><0x0000000000000001>``
+``@foobar<0xff><0x0000000000000001>``
 
 And maybe there is another client subscribed to that same topic:
 
-``@foobar<0xef><0x0000000000000002>``
+``@foobar<0xff><0x0000000000000002>``
 
-A subscription with a 0-length token looks like this - topic ``foo/bar/``; Client ID ``2``:
+A subscription with a 0-length token looks like this - topic ``foo/bar/``; Client ID ``3``:
 
-``@foobar<0x1f><0xef><0x0000000000000003>``
+``@foobar<0x1f><0xff><0x0000000000000003>``
 
-A shared subscription is like this - topic ``$share/baz/foo/bar``; Client ID ``3``:
+A shared subscription is like this - topic ``$share/baz/foo/bar``; Client ID ``4``:
 
-``@foobar<0xff>baz<0x0000000000000004>``
+``@foobar<0xef>baz<0xff><0x0000000000000004>``
 
 ... and it's more interesting if there is more than one client sharing the same subscription:
 
-``@foobar<0xff>baz<0x0000000000000005>``
+``@foobar<0xef>baz<0xff><0x0000000000000005>``
 
-A plus wildcard can replace any token, e.g. topic ``+/bar``; Client ID ``5``:
+Shared subscriptions can form a complex subhierarchy, e.g. - topic ``$share/bazzle/foo/bar``; Client ID ``6``:
 
-``@+bar<0xef><0x0000000000000006>``
+``@foobar<0xef>bazzle<0xff><0x0000000000000006>``
 
-A hash wildcard can be the last token at any level, e.g. topic ``foo/#``; Client ID ``7``:
+A plus wildcard can replace any token, e.g. topic ``+/bar``; Client ID ``7``:
 
-``@foo#<0xef><0x0000000000000007>``
+``@+bar<0xff><0x0000000000000007>``
+
+A hash wildcard can be the last token at any level, e.g. topic ``foo/#``; Client ID ``8``:
+
+``@foo#<0xff><0x0000000000000008>``
 
 Of course a client can have any number of subscriptions and vice versa, e.g. topic ``foo/#``; Client ID ``1``:
 
-``@foo#<0xef><0x0000000000000001>``
+``@foo#<0xff><0x0000000000000001>``
 
 And subscribe to a ``$SYS`` topic as well, e.g. topic ``$SYS/foo/#``; Client ID ``1``:
 
-``$$SYSfoo#<0xef><0x0000000000000001>``
+``$$SYSfoo#<0xff><0x0000000000000001>``
 
-Valid UTF-8 is fully supported, e.g. topic ``酒/吧``; Client ID ``7``:
+Valid UTF-8 is fully supported, e.g. topic ``酒/吧``; Client ID ``8``:
 
-``@酒吧<0xef><0x0000000000000007>``
+``@酒吧<0xff><0x0000000000000008>``
 
-Note: ``/`` is a valid token separator for all UTF-8 character strings.
+Note: ``/`` is a valid token separator for all UTF-8 character strings as it cannot be confused with any valid adjacent UTF-8 byte.
 
 ### The Rax tree implementation
 
@@ -136,7 +141,7 @@ These functions remove all the keys in a subtree.
 
 ### Overlaying the TC tree on Rax
 
-Each token subtree in a normalized topic is stored as a key. The client mark subtree, shared mark subtree and share subtree are also keys. Finally, the entire topic with Client ID is a key. Hence inserting ``@foobar<0xef><0x0000000000000001>`` would result in the following 5 keys:
+Each token subtree in a normalized topic is stored as a key. The client mark subtree, shared mark subtree and share subtree are also keys. Finally, the entire topic with Client ID is a key. Hence inserting ``@foobar<0xff><0x0000000000000001>`` would result in the following 5 keys:
 ```
 @
 ↑
@@ -144,20 +149,20 @@ Each token subtree in a normalized topic is stored as a key. The client mark sub
    ↑
 @foobar
       ↑
-@foobar<0xef>
+@foobar<0xff>
            ↑
-@foobar<0xef><0x0000000000000001>
+@foobar<0xff><0x0000000000000001>
                                ↑
 ```
 Due to prefix compression, storage for the 5 keys would look like:
 ```
-@foobar<0xef><0x0000000000000001>
+@foobar<0xff><0x0000000000000001>
 ↑  ↑  ↑    ↑                   ↑
 ```
 
-When ``@foobar<0xef><0x0000000000000002>`` is also inserted, we get:
+When ``@foobar<0xff><0x0000000000000002>`` is also inserted, we get:
 ```
-@foobar<0xef><0x00000000000000>
+@foobar<0xff><0x00000000000000>
 ↑  ↑  ↑    ↑                 \
                                |<0x01>
                                \    ↑
@@ -165,25 +170,27 @@ When ``@foobar<0xef><0x0000000000000002>`` is also inserted, we get:
                                     ↑
 ```
 
-The additions to Rax include ``raxShowHex()``. When the 10 subscriptions above are applied to the TC tree they result in the following ASCII art of the Rax internal structures, illustrating prefix compression, node compression and adaptive node sizes:
+The additions to Rax include ``raxShowHex()``. When the 11 subscriptions above are applied to the TC tree they result in the following ASCII art of the Rax internal structures, illustrating prefix compression, node compression and adaptive node sizes:
 ```
 [$@]
- `-($) "$SYS" -> "foo" -> [#] -> [0xfe] -> "0x0000000000000001" -> []
+ `-($) "$SYS" -> "foo" -> [#] -> [0xff] -> "0x0000000000000001" -> []
  `-(@) [0x2b66e9]
-        `-(+) "bar" -> [0xfe] -> "0x0000000000000006" -> []
+        `-(+) "bar" -> [0xff] -> "0x0000000000000007" -> []
         `-(f) "oo" -> [#b]
-                       `-(#) [0xfe] -> "0x00000000000000" -> [0x0107]
+                       `-(#) [0xff] -> "0x00000000000000" -> [0x0108]
                                                               `-(.) []
                                                               `-(.) []
                        `-(b) "ar" -> [0x1ffeff]
-                                      `-(.) [0xfe] -> "0x0000000000000003" -> []
+                                      `-(.) [0xff] -> "0x0000000000000003" -> []
+                                      `-(.) "baz" -> [0x7aff]
+                                                      `-(z) "le" -> [0xff] -> "0x0000000000000006" -> []
+                                                      `-(.) "0x00000000000000" -> [0x0405]
+                                                                                   `-(.) []
+                                                                                   `-(.) []
                                       `-(.) "0x00000000000000" -> [0x0102]
                                                                    `-(.) []
                                                                    `-(.) []
-                                      `-(.) "baz" -> "0x00000000000000" -> [0x0405]
-                                                                            `-(.) []
-                                                                            `-(.) []
-        `-(.) "0x8592" -> "0xe590a7" -> [0xfe] -> "0x0000000000000007" -> []
+        `-(.) "0x8592" -> "0xe590a7" -> [0xff] -> "0x0000000000000008" -> []
 ```
 A full explanation of the notation above is in the Rax README and ``rax.c``; a tricky part is that edge bytes pointing to nodes are not stored in the nodes themselves.
 
@@ -223,11 +230,11 @@ When we have finished all subtrees, including those necessary to handle ``+`` wi
 
 Phase 2 of the strategy, gathering Client IDs for a search predicate, proceeds in 2 steps:
 
-1) Append the Client Mark (``0xef``) to the current key and search for the key. If found, iterate over its Client ID children inserting each Client ID into the result set.
+1) Append the Client Mark (``0xff``) to the current key and search for the key. If found, iterate over its Client ID children inserting each Client ID into the result set.
 
-2) Append the Shared Mark (``0xff``) to the current key and search for it. If found iterate over the share name children, e.g. ``baz``, and, for each share name, get its Client ID children, select one at random and insert it into the result set.
+2) Append the Shared Mark (``0xef``) to the current key and search for it. If found iterate over the share name children, e.g. ``baz``, and, for each share name, append the Client Mark, get its Client ID children, then select one at random and insert it into the result set.
 
-Running ``mr_get_subscribed_clients()`` using publish topic ``foo/bar`` against our TC tree above results in Client IDs: `` 1 2 4 6 7``. Repeatedly running it will result in `` 1 2 5 6 7`` about half the time – this is due to the share ``baz`` being shared by clients ``4`` and ``5`` whereas the other subscriptions are normal.
+Running ``mr_get_subscribed_clients()`` using publish topic ``foo/bar`` against our TC tree above results in Client IDs: `` 1 2 4 6 7 8``. Repeatedly running it will result in `` 1 2 5 6 7 8`` about half the time – this is due to the share ``baz`` being shared by clients ``4`` and ``5`` whereas share ``bazzle`` has a single client and the other subscriptions are normal.
 
 Note also that Client ID ``1`` only appears once although it is present in 2 matching subscriptions: ``foo/bar`` and ``foo/#``; also Client ID ``3`` is not present since subscription topic ``foo/bar/`` does not match the publish topic.
 
@@ -241,10 +248,10 @@ Topic aliases are in 2 distinct sets: ones set by the client and those set by th
 
 The topic alias leaf values are used to store the alias scalar and the topic pointer, since we do not need to search on them.
 
-Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHex()`` yields the following depiction of our 7 clients, their 10 subscriptions and the 2 aliases in the client tree – the short hex values after the ``=`` in the leaf nodes are aliases and the longer ones are pointers to topic strings:
+Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHex()`` yields the following depiction of our 8 clients, their 11 subscriptions and the 2 aliases in the client tree – the short hex values after the ``=`` in the leaf nodes are aliases and the longer ones are pointers to topic strings:
 
 ```
-"0x00000000000000" -> [0x01020304050607]
+"0x00000000000000" -> [0x0102030405060708]
         `-(.) [as]
                `-(a) "liases" -> [cs]
                                   `-(c) "lient" -> [at]
@@ -262,6 +269,7 @@ Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus out
         `-(.) "subs" -> "foo/bar/" -> []
         `-(.) "subs" -> "$share/baz/foo/bar" -> []
         `-(.) "subs" -> "$share/baz/foo/bar" -> []
+        `-(.) "subs" -> "$share/bazzle/foo/bar" -> []
         `-(.) "subs" -> "+/bar" -> []
         `-(.) "subs" -> [0x66e9]
                          `-(f) "oo/#" -> []

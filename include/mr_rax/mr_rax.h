@@ -9,8 +9,8 @@
 #define MAX_TOPIC_LEN 256
 
 // invalid utf8 chars used to separate clients & shared subs from topics
-static uint8_t client_mark = 0xFE;
-static uint8_t shared_mark = 0xFF;
+static uint8_t shared_mark = 0xfe;
+static uint8_t client_mark = 0xff;
 
 // MQTT disallowed control char used to represent a zero-length token
 static uint8_t empty_tokenv[] = {0x1f, 0};

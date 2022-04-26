@@ -171,6 +171,7 @@ typedef int (*raxNodeCallback)(raxNode **noderef);
 
 /* Radix tree iterator state is encapsulated into this data structure. */
 #define RAX_ITER_STATIC_LEN 128
+#define RAX_ITER_CHILD_STATIC_LEN 32
 #define RAX_ITER_JUST_SEEKED (1<<0) /* Iterator was just seeked. Return current
                                        element for the first iteration and
                                        clear the flag. */
@@ -188,11 +189,11 @@ typedef struct raxIterator {
     raxNode *node;          /* Current node. Only for unsafe iteration. */
     raxNode *stop_node; // mr_rax additions 20220401 ml: terminate ascent
     raxStack stack;         /* Stack used for unsafe iteration. */
-    int child_offset;
-    size_t cpos_max;
-    size_t cpos; // current position in the vector of child offsets
-    uint8_t* child_offsetv;
-    uint8_t child_offsetv_static[RAX_ITER_STATIC_LEN];
+    int child_offset; // current child offset
+    size_t cpos_max; // max number of child offsets the current stack can hold
+    size_t cpos; // current position in the stack of child offsets
+    uint8_t* child_offsetv; // stack (vector) of child offsets
+    uint8_t child_offsetv_static[RAX_ITER_CHILD_STATIC_LEN];
     raxNodeCallback node_cb; /* Optional node callback. Normally set to NULL. */
 } raxIterator;
 
@@ -223,11 +224,13 @@ void raxSetDebugMsg(int onoff);
 /* Internal API. May be used by the node callback in order to access rax nodes
  * in a low level way, so this function is exported as well. */
 void raxSetData(raxNode *n, void *data, int isscalar);
+void *raxGetData(raxNode *n);
 
 // mr_rax additions by ml 20220401
-int raxSeekChildren(raxIterator* it, uint8_t* ele, size_t len);
 int raxNextChild(raxIterator* it);
 int raxNextInSet(raxIterator* it);
+int raxSeekChildren(raxIterator* it, uint8_t* key, size_t len);
+int raxSeekSubtree(raxIterator* it, uint8_t* key, size_t len);
 int raxSeekSet(raxIterator* it);
 void raxShowHex(rax* rax);
 int raxInsertScalar(rax* rax, uint8_t* s, size_t len, uintptr_t data, uintptr_t* old);
