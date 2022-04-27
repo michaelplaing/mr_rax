@@ -508,19 +508,26 @@ static inline size_t raxLowWalk(
 
 int raxIteratorPushChildOffset(raxIterator *it, uint8_t child_offset) {
     if (it->cpos == it->cpos_max) {
-        uint8_t *old = (it->child_offsetv == it->child_offsetv_static) ? NULL : it->child_offsetv;
+        uint8_t *old = (
+            (it->child_offset_stack == it->child_offset_stack_static) ?
+            NULL :
+            it->child_offset_stack
+        );
+
         size_t new_max = it->cpos_max * 2;
-        it->child_offsetv = rax_realloc(old, new_max);
-        if (it->child_offsetv == NULL) {
-            it->child_offsetv = (!old) ? it->child_offsetv_static : old;
+        it->child_offset_stack = rax_realloc(old, new_max);
+
+        if (it->child_offset_stack == NULL) {
+            it->child_offset_stack = (!old) ? it->child_offset_stack_static : old;
             errno = ENOMEM;
             return 0;
         }
-        if (old == NULL) memcpy(it->child_offsetv, it->child_offsetv_static, it->cpos_max);
+
+        if (old == NULL) memcpy(it->child_offset_stack, it->child_offset_stack_static, it->cpos_max);
         it->cpos_max = new_max;
     }
 
-    it->child_offsetv[it->cpos] = child_offset;
+    it->child_offset_stack[it->cpos] = child_offset;
     it->cpos++;
     return 1;
 }
@@ -528,59 +535,55 @@ int raxIteratorPushChildOffset(raxIterator *it, uint8_t child_offset) {
  uint8_t raxIteratorPopChildOffset(raxIterator *it) {
     if (it->cpos == 0) return 0;
     it->cpos--;
-    return it->child_offsetv[it->cpos];
+    return it->child_offset_stack[it->cpos];
 }
 
 static inline size_t raxLowWalkSeek(unsigned char *s, size_t len, int *splitpos, raxIterator* it) {
     raxNode *h = it->rt->head;
 
-    size_t i = 0; /* Position in the string. */
-    size_t j = 0; /* Position in the node children (or bytes if compressed).*/
-    size_t k = 0;
-    int gt = 0;
+    size_t i = 0;
+    size_t j = 0;
+    size_t k = 0; // actual child offset
     while(h->size && i < len) {
-        debugnode("Lookup current node",h);
         unsigned char *v = h->data;
 
         if (h->iscompr) {
             for (j = 0; j < h->size && i < len; j++, i++) {
-                if (v[j] != s[i]) break; // for
-            } // end for
-            if (j != h->size) break; // while
-        } else {
+                if (v[j] != s[i]) break;
+            }
+
+            if (j != h->size) break;
+        }
+        else {
             for (j = 0; j < h->size; j++) {
-                if (v[j] == s[i]) break; // for
-                if (v[j] > s[i]) {
-                    gt = 1;
-                    break; // for
-                }
-            } // end for
-            if (gt) {
+                if (v[j] >= s[i]) break;
+            }
+
+            if (v[j] > s[i]) {
                 k = j;
                 j = h->size;
-                break; // while
+                break;
             }
+
             if (j == h->size) {
                 k = j;
-                break; // while
+                break;
             }
+
             i++;
         }
 
-        if (h->iscompr) j = 0; /* Compressed node only child is at index 0. */
-        raxIteratorPushChildOffset(it, j); // push j to offsetv
-        raxStackPush(&it->stack,h); /* Save stack of parent nodes. */
+        if (h->iscompr) j = 0;
+        raxIteratorPushChildOffset(it, j);
+        raxStackPush(&it->stack,h);
         raxNode **children = raxNodeFirstChildPtr(h);
         memcpy(&h,children+j,sizeof(h));
-        j = 0; /* If the new node is compressed and we do not
-                  iterate again (since i == l) set the split
-                  position to 0 to signal this node represents
-                  the searched key. */
-    } // end while
-    debugnode("Lookup stop node is",h);
-    it->node = h; // set current node to h
+        j = 0;
+    }
+
+    it->node = h;
     if (h->iscompr) *splitpos = j;
-    it->child_offset = k; // set current_offset to k
+    it->child_offset = k;
     return i;
 }
 
@@ -1362,9 +1365,10 @@ void raxStart(raxIterator *it, rax *rt) {
     it->key_max = RAX_ITER_STATIC_LEN;
     it->data = NULL;
     it->node_cb = NULL;
+    it->child_offset = 0;
     it->cpos = 0;
     it->cpos_max = RAX_ITER_CHILD_STATIC_LEN;
-    it->child_offsetv = it->child_offsetv_static;
+    it->child_offset_stack = it->child_offset_stack_static;
     raxStackInit(&it->stack);
 }
 
@@ -1516,12 +1520,10 @@ int raxSeekGreatest(raxIterator *it) {
             if (!raxIteratorAddChars(it,it->node->data,
                 it->node->size)) return 0;
             raxIteratorPushChildOffset(it, 0);
-            //it->child_offset = 0; // set parent offset to current child
         } else {
             if (!raxIteratorAddChars(it,it->node->data+it->node->size-1,1))
                 return 0;
             raxIteratorPushChildOffset(it, it->node->size - 1);
-            //it->child_offset = it->node->size - 1;
         }
         raxNode **cp = raxNodeLastChildPtr(it->node);
         if (!raxStackPush(&it->stack,it->node)) return 0;
