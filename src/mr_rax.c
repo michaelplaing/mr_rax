@@ -283,9 +283,7 @@ static int mr_get_topic_clients(rax* tc_tree, raxIterator* iter, rax* srax, uint
     raxSeekSubtree(iter, key, key_len + 1);
 
     while(raxNext(iter)) { // randomly pick one client per share
-        // if (iter->node->isnull) continue; // consider only client marks with counts as values
         if (iter->key[iter->key_len - 1] != 0xff) continue; // consider only client marks
-        // uintptr_t count = (uintptr_t)raxGetData(iter->node);
         raxIterator iter2;
         raxStart(&iter2, tc_tree);
         raxSeekChildren(&iter2, iter->key, iter->key_len);

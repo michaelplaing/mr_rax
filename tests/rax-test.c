@@ -36,7 +36,7 @@
 #include <assert.h>
 #include <errno.h>
 
-#include "rax.h"
+#include "mr_rax/rax.h"
 #include "rc4rand.h"
 
 uint16_t crc16(const char *buf, int len); /* From crc16.c */
