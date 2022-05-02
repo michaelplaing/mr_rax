@@ -110,7 +110,7 @@ int topic_fun(void) {
 
     mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic, 1);
     mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 2);
-    mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic, 2);
+    // mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic, 2);
     //uint8_t alias;
     //int rc = mr_get_alias_by_topic(client_tree, 1, true, pubtopic, &alias);
     //printf("mr_get_alias_by_topic:: rc: %d; alias: %u\n", rc, alias);
@@ -118,8 +118,8 @@ int topic_fun(void) {
     //rc = mr_get_topic_by_alias(client_tree, 1, true, 2, &aliastopic);
     //printf("mr_get_topic_by_alias:: rc: %d; aliastopic: %s\n", rc, aliastopic);
     mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 8);
-    mr_upsert_client_topic_alias(client_tree, 1, false, pubtopic3, 8);
-    mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 9);
+    // mr_upsert_client_topic_alias(client_tree, 1, false, pubtopic3, 8);
+    // mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 9);
     uint8_t alias;
     //int rc = mr_get_alias_by_topic(client_tree, 1, false, pubtopic, &alias);
     //printf("mr_get_alias_by_topic:: rc: %d; alias: %u\n", rc, alias);

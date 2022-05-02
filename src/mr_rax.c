@@ -374,8 +374,8 @@ int mr_upsert_client_topic_alias(
 ) {
     size_t ptlen = strlen(pubtopic);
     char* source = isclient ? "client" : "server";
-    char topicbyalias[8 + 16 + 1];       // <Client ID>"aliasesclienttba"<alias>
-    char aliasbytopic[8 + 16 + ptlen];   // <Client ID>"aliasesclientatb"<pubtopic>
+    char topicbyalias[8 + 16 + 1 + ptlen];       // <Client ID>"aliasesclienttba"<alias><pubtopic>
+    char aliasbytopic[8 + 16 + ptlen + 1];   // <Client ID>"aliasesclientabt"<pubtopic><alias>
     for (int i = 0; i < 8; i++) topicbyalias[i] = client >> ((7 - i) * 8) & 0xff;
 
     // common: 7 + 6 + 3 = 16
@@ -391,35 +391,44 @@ int mr_upsert_client_topic_alias(
     memcpy(aliasbytopic + 8 + 7 + 6, "abt", 3);
     raxTryInsert(client_tree, (uint8_t*)aliasbytopic, 8 + 16, NULL, NULL);
 
-    // inversion pair
     memcpy(topicbyalias + 8 + 16, &alias, 1);
+    raxTryInsert(client_tree, (uint8_t*)topicbyalias, 8 + 16 + 1, NULL, NULL);
     memcpy(aliasbytopic + 8 + 16, pubtopic, ptlen);
+    raxTryInsert(client_tree, (uint8_t*)aliasbytopic, 8 + 16 + ptlen, NULL, NULL);
 
-    // clear topicbyalias & inversion if necessary
-    char* pubtopic2;
-    if (raxRemove(client_tree, (uint8_t*)topicbyalias, 8 + 16 + 1, (void**)&pubtopic2)) {
-        size_t ptlen2 = strlen(pubtopic2);
-        memcpy(aliasbytopic + 8 + 16, pubtopic2, ptlen2);
-        raxRemoveScalar(client_tree, (uint8_t*)aliasbytopic, 8 + 16 + ptlen2, NULL);
-        rax_free(pubtopic2);
-        memcpy(aliasbytopic + 8 + 16, pubtopic, ptlen); // restore
+    // inversion pair
+    memcpy(topicbyalias + 8 + 16 + 1, pubtopic, ptlen);
+    memcpy(aliasbytopic + 8 + 16 + ptlen, &alias, 1);
+
+    raxIterator iter;
+    raxStart(&iter, client_tree);
+
+    if (raxSeekChildren(&iter, (uint8_t*)topicbyalias, 8 + 16 + 1)) {
+        if (raxNextChild(&iter)) {
+            size_t ptlen2 = iter.key_len - (8 + 16 + 1);
+            char aliasbytopic2[8 + 16 + ptlen2];   // <Client ID>"aliasesclientabt"<pubtopic>
+            memcpy(aliasbytopic2, aliasbytopic, 8 + 16);
+            memcpy(aliasbytopic2 + 8 + 16, iter.key + 8 + 16 + 1, ptlen2);
+            raxFreeSubtree(client_tree, (uint8_t*)aliasbytopic2, 8 + 16 + ptlen2);
+        }
+
+        raxFreeSubtree(client_tree, (uint8_t*)topicbyalias, 8 + 16 + 1);
     }
 
-    // clear aliasbytopic & inversion if necessary
-    uintptr_t old_bigalias;
-    if (raxRemoveScalar(client_tree, (uint8_t*)aliasbytopic, 8 + 16 + ptlen, &old_bigalias)) {
-        uint8_t old_alias = old_bigalias & 0xff;
-        memcpy(topicbyalias + 8 + 16, &old_alias, 1);
-        char* pubtopic3;
-        raxRemove(client_tree, (uint8_t*)topicbyalias, 8 + 16 + 1, (void**)&pubtopic3);
-        rax_free(pubtopic3);
-        memcpy(topicbyalias + 8 + 16, &alias, 1); // restore
+    if (raxSeekChildren(&iter, (uint8_t*)aliasbytopic, 8 + 16 + ptlen)) {
+        if (raxNextChild(&iter)) {
+            char topicbyalias2[8 + 16 + 1];       // <Client ID>"aliasesclienttba"<alias>
+            memcpy(topicbyalias2, topicbyalias, 8 + 16);
+            memcpy(topicbyalias2 + 8 + 16, iter.key + 8 + 16 + ptlen, 1);
+            raxFreeSubtree(client_tree, (uint8_t*)topicbyalias2, 8 + 16 + 1);
+        }
+
+        raxFreeSubtree(client_tree, (uint8_t*)aliasbytopic, 8 + 16 + ptlen);
     }
 
     // insert inversion pair
-    char* pubtopic4 = strdup(pubtopic); // free on removal
-    raxInsert(client_tree, (uint8_t*)topicbyalias, 8 + 16 + 1, pubtopic4, NULL);
-    raxInsertScalar(client_tree, (uint8_t*)aliasbytopic, 8 + 16 + ptlen, alias, NULL);
+    raxInsert(client_tree, (uint8_t*)topicbyalias, 8 + 16 + 1 + ptlen, NULL, NULL);
+    raxInsert(client_tree, (uint8_t*)aliasbytopic, 8 + 16 + ptlen + 1, NULL, NULL);
 
     return 0;
 }
