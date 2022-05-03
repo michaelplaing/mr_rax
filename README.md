@@ -97,7 +97,7 @@ Note: ``/`` is a valid token separator for all UTF-8 character strings as it can
 
 ### The Rax tree implementation
 
-Rax is a binary character based adaptive radix prefix tree. This means that common prefixes are combined and node sizes vary depending on prefix compression, node compression and the number of children (radix), which can be 0 to 256 (hence adaptive). A key is a sequence of bytes that can be "inserted" and/or "found". Optionally a key can have associated data: a pointer or a scalar. The keys are maintained in lexicographic order within the tree's hierarchy.
+Rax is a binary character based adaptive radix prefix tree. This means that common prefixes are combined and node sizes vary depending on prefix compression, node compression and the number of children (radix), which can be 0 to 256 (hence adaptive). A key is a sequence of bytes that can be "inserted" and/or "found". Optionally a key can have associated data: a pointer or a scalar – this capability is not currently used in the `mr_rax` project. The keys are maintained in lexicographic order within the tree's hierarchy.
 
 There is much more information in the Rax README and ``rax.c``.
 
@@ -115,25 +115,8 @@ And for easier visualization of binary data, e.g. Client IDs:
 
 - ``raxShowHex()``
 
-The following functions set the added ``isscalar`` flag for a key to indicate that the associated value field is scalar data and not an allocated pointer - hence the value should not be freed.
 
-- ``raxInsertScalar()``
-
-- ``raxTryInsertScalar()``
-
-This function removes a key and sets a pointer to the old scalar data.
-
-- ``raxRemoveScalar()``
-
-This one removes a key then sets a pointer to the old value and a pointer to the ``isscalar`` flag of the old value.
-
-- ``raxRemoveWithFlag()``
-
-This function frees the Rax tree and any allocated pointers associated with its keys; i.e. it does not try to free scalar data.
-
-- ``raxFreeWithScalar()``
-
-These functions remove all the keys in a subtree.
+These functions remove all the keys and nodes in a subtree.
 
 - ``raxFreeSubtree()``
 
@@ -246,20 +229,18 @@ The client tree uses the external format for both subscribe and publish topics.
 
 Topic aliases are in 2 distinct sets: ones set by the client and those set by the server. Hence there are 2 pairs (handling inversion) of synchronized subtrees for each client, providing alias-by-topic and topic-by-alias for client and server aliases.
 
-The topic alias leaf values are used to store the alias scalar and the topic pointer, since we do not need to search on them.
-
-Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHex()`` yields the following depiction of our 8 clients, their 11 subscriptions and the 2 aliases in the client tree – the short hex values after the ``=`` in the leaf nodes are aliases and the longer ones are pointers to topic strings:
+Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHex()`` yields the following depiction of our 8 clients, their 11 subscriptions and the 2 aliases in the client tree:
 
 ```
 "0x00000000000000" -> [0x0102030405060708]
         `-(.) [as]
                `-(a) "liases" -> [cs]
                                   `-(c) "lient" -> [at]
-                                                    `-(a) "bt" -> "baz/bam" -> []=0x8
-                                                    `-(t) "ba" -> [0x08] -> []=0x104f08098
+                                                    `-(a) "bt" -> "baz/bam" -> [0x08] -> []
+                                                    `-(t) "ba" -> [0x08] -> "baz/bam" -> []
                                   `-(s) "erver" -> [at]
-                                                    `-(a) "bt" -> "foo/bar" -> []=0x8
-                                                    `-(t) "ba" -> [0x08] -> []=0x104f080b0
+                                                    `-(a) "bt" -> "foo/bar" -> [0x08] -> []
+                                                    `-(t) "ba" -> [0x08] -> "foo/bar" -> []
                `-(s) "ubs" -> [$f]
                                `-($) "SYS/foo/#" -> []
                                `-(f) "oo/" -> [#b]
