@@ -224,10 +224,8 @@ raxNode *raxReallocForData(raxNode *n, void *data) {
 }
 
 /* Set the node auxiliary data to the specified pointer. */
-void raxSetData(raxNode *n, void *data, int isscalar) { // ml 20220408
+void raxSetData(raxNode *n, void *data) {
     n->iskey = 1;
-    n->isscalar = isscalar; // ml 20220408
-
     if (data != NULL) {
         n->isnull = 0;
         void **ndata = (void**)
@@ -410,10 +408,8 @@ raxNode *raxCompressNode(raxNode *n, unsigned char *s, size_t len, raxNode **chi
 
     /* Make space in the parent node. */
     newsize = sizeof(raxNode)+len+raxPadding(len)+sizeof(raxNode*);
-    int isscalar;
     if (n->iskey) {
         data = raxGetData(n); /* To restore it later. */
-        isscalar = n->isscalar; // ml 20220408
         if (!n->isnull) newsize += sizeof(void*);
     }
     raxNode *newn = rax_realloc(n,newsize);
@@ -426,7 +422,7 @@ raxNode *raxCompressNode(raxNode *n, unsigned char *s, size_t len, raxNode **chi
     n->iscompr = 1;
     n->size = len;
     memcpy(n->data,s,len);
-    if (n->iskey) raxSetData(n,data, isscalar); // ml 20220408
+    if (n->iskey) raxSetData(n,data);
     raxNode **childfield = raxNodeLastChildPtr(n);
     memcpy(childfield,child,sizeof(*child));
     return n;
@@ -594,7 +590,7 @@ static inline size_t raxLowWalkSeek(unsigned char *s, size_t len, int *splitpos,
  * function returns 0 as well but sets errno to ENOMEM, otherwise errno will
  * be set to 0.
  */
-int raxGenericInsert(rax *rax, unsigned char *s, size_t len, void *data, void **old, int overwrite, int isscalar) {
+int raxGenericInsert(rax *rax, unsigned char *s, size_t len, void *data, void **old, int overwrite) {
     size_t i;
     int j = 0; /* Split position. If raxLowWalk() stops in a compressed
                   node, the index 'j' represents the char we stopped within the
@@ -625,14 +621,14 @@ int raxGenericInsert(rax *rax, unsigned char *s, size_t len, void *data, void **
         /* Update the existing key if there is already one. */
         if (h->iskey) {
             if (old) *old = raxGetData(h);
-            if (overwrite) raxSetData(h,data, isscalar);
+            if (overwrite) raxSetData(h,data);
             errno = 0;
             return 0; /* Element already exists. */
         }
 
         /* Otherwise set the node as a key. Note that raxSetData()
          * will set h->iskey. */
-        raxSetData(h,data, isscalar);
+        raxSetData(h,data);
         rax->numele++;
         return 1; /* Element inserted. */
     }
@@ -821,7 +817,7 @@ int raxGenericInsert(rax *rax, unsigned char *s, size_t len, void *data, void **
             /* 3a: Replace the old node with the split node. */
             if (h->iskey) {
                 void *ndata = raxGetData(h);
-                raxSetData(splitnode,ndata, h->isscalar);
+                raxSetData(splitnode,ndata);
             }
             memcpy(parentlink,&splitnode,sizeof(splitnode));
         } else {
@@ -833,7 +829,7 @@ int raxGenericInsert(rax *rax, unsigned char *s, size_t len, void *data, void **
             trimmed->isnull = h->isnull;
             if (h->iskey && !h->isnull) {
                 void *ndata = raxGetData(h);
-                raxSetData(trimmed,ndata, h->isscalar);
+                raxSetData(trimmed,ndata);
             }
             raxNode **cp = raxNodeLastChildPtr(trimmed);
             memcpy(cp,&splitnode,sizeof(splitnode));
@@ -848,7 +844,6 @@ int raxGenericInsert(rax *rax, unsigned char *s, size_t len, void *data, void **
             /* 4a: create a postfix node. */
             postfix->iskey = 0;
             postfix->isnull = 0;
-            postfix->isscalar = 0;
             postfix->size = postfixlen;
             postfix->iscompr = postfixlen > 1;
             memcpy(postfix->data,h->data+j+1,postfixlen);
@@ -903,7 +898,7 @@ int raxGenericInsert(rax *rax, unsigned char *s, size_t len, void *data, void **
         postfix->iskey = 1;
         postfix->isnull = 0;
         memcpy(postfix->data,h->data+j,postfixlen);
-        raxSetData(postfix,data, h->isscalar);
+        raxSetData(postfix,data);
         raxNode **cp = raxNodeLastChildPtr(postfix);
         memcpy(cp,&next,sizeof(next));
         rax->numnodes++;
@@ -917,7 +912,7 @@ int raxGenericInsert(rax *rax, unsigned char *s, size_t len, void *data, void **
         memcpy(parentlink,&trimmed,sizeof(trimmed));
         if (h->iskey) {
             void *aux = raxGetData(h);
-            raxSetData(trimmed,aux, h->isscalar);
+            raxSetData(trimmed,aux);
         }
 
         /* Fix the trimmed node child pointer to point to
@@ -968,7 +963,7 @@ int raxGenericInsert(rax *rax, unsigned char *s, size_t len, void *data, void **
     if (newh == NULL) goto oom;
     h = newh;
     if (!h->iskey) rax->numele++;
-    raxSetData(h,data, isscalar);
+    raxSetData(h,data);
     memcpy(parentlink,&h,sizeof(h));
     return 1; /* Element inserted. */
 
@@ -991,14 +986,14 @@ oom:
 /* Overwriting insert. Just a wrapper for raxGenericInsert() that will
  * update the element if there is already one for the same key. */
 int raxInsert(rax *rax, unsigned char *s, size_t len, void *data, void **old) {
-    return raxGenericInsert(rax,s,len,data,old,1,0);
+    return raxGenericInsert(rax,s,len,data,old,1);
 }
 
 /* Non overwriting insert function: this if an element with the same key
  * exists, the value is not updated and the function returns 0.
  * This is a just a wrapper for raxGenericInsert(). */
 int raxTryInsert(rax *rax, unsigned char *s, size_t len, void *data, void **old) {
-    return raxGenericInsert(rax,s,len,data,old,0, 0);
+    return raxGenericInsert(rax,s,len,data,old,0);
 }
 
 /* Find a key in the rax, returns raxNotFound special void pointer value
@@ -1046,7 +1041,7 @@ raxNode *raxRemoveChild(raxNode *parent, raxNode *child) {
         parent->isnull = 0;
         parent->iscompr = 0;
         parent->size = 0;
-        if (parent->iskey) raxSetData(parent,data, parent->isscalar);
+        if (parent->iskey) raxSetData(parent,data);
         debugnode("raxRemoveChild after", parent);
         return parent;
     }
@@ -1108,7 +1103,7 @@ raxNode *raxRemoveChild(raxNode *parent, raxNode *child) {
 
 /* Remove the specified item. Returns 1 if the item was found and
  * deleted, 0 otherwise. */
-int raxRemoveGeneric(rax *rax, unsigned char *s, size_t len, void **old, int* pisscalar) {
+int raxRemove(rax *rax, unsigned char *s, size_t len, void **old) {
     raxNode *h;
     raxStack ts;
 
@@ -1120,12 +1115,7 @@ int raxRemoveGeneric(rax *rax, unsigned char *s, size_t len, void **old, int* pi
         raxStackFree(&ts);
         return 0;
     }
-
-    if (old) {
-        *old = raxGetData(h);
-        if (pisscalar) *pisscalar = h->isscalar;
-    }
-
+    if (old) *old = raxGetData(h);
     h->iskey = 0;
     rax->numele--;
 
@@ -1312,9 +1302,9 @@ int raxRemoveGeneric(rax *rax, unsigned char *s, size_t len, void **old, int* pi
     return 1;
 }
 
-int raxRemove(rax *rax, unsigned char *s, size_t len, void **old) {
-    return raxRemoveGeneric(rax, s, len, old, NULL);
-}
+// int raxRemove(rax *rax, unsigned char *s, size_t len, void **old) {
+//     return raxRemoveGeneric(rax, s, len, old, NULL);
+// }
 
 /* This is the core of raxFree(): performs a depth-first scan of the
  * tree and releases all the nodes found. */
@@ -1332,7 +1322,7 @@ void raxRecursiveFree(rax *rax, raxNode *n, void (*free_callback)(void*)) {
 
     if (n->iskey) { // ml 20220408
         rax->numele--;
-        if (free_callback && !n->isnull && !n->isscalar) free_callback(raxGetData(n));
+        if (free_callback && !n->isnull) free_callback(raxGetData(n));
     }
 
     rax_free(n);
@@ -1561,7 +1551,6 @@ int raxIteratorPrevStep(raxIterator *it, int noup) {
             return 1;
         }
 
-        //unsigned char prevchild = it->key[it->key_len-1];
         if (!noup) {
             it->node = raxStackPop(&it->stack);
             it->child_offset = raxIteratorPopChildOffset(it);
@@ -2220,27 +2209,6 @@ void raxShowHex(rax* rax) {
     putchar('\n');
 }
 
-// just like their plain counterparts above but set the raxNode isscalar flag for raxFreeWithCallback
-int raxInsertScalar(rax* rax, uint8_t* s, size_t len, uintptr_t data, uintptr_t* old) {
-    return raxGenericInsert(rax, s, len, (void*)data, (void**)old, 1, 1);
-}
-
-int raxTryInsertScalar(rax* rax, uint8_t* s, size_t len, uintptr_t data, uintptr_t* old) {
-    return raxGenericInsert(rax, s, len, (void*)data, (void**)old, 0, 1);
-}
-
-int raxRemoveScalar(rax* rax, uint8_t* s, size_t len, uintptr_t* old) {
-    return raxRemove(rax, s, len, (void**)old);
-}
-
-int raxRemoveWithFlag(rax* rax, uint8_t* s, size_t len, void** old, int* pisscalar) {
-    return raxRemoveGeneric(rax, s, len, old, pisscalar);
-}
-
-void raxFreeWithFlag(rax* rax) {
-    raxFreeWithCallback(rax, rax_free);
-}
-
 int raxFreeSubtreeWithCallback(rax* rax, uint8_t* key, size_t len, void (*free_callback)(void*)) {
     raxIterator it;
     raxStart(&it, rax);
@@ -2249,10 +2217,9 @@ int raxFreeSubtreeWithCallback(rax* rax, uint8_t* key, size_t len, void (*free_c
     raxNode** cp = raxNodeFirstChildPtr(it.node);
     for (int i = 0; i < children; i++, cp++) raxRecursiveFree(rax, *cp, free_callback);
     it.node->size = 0; // trigger cleanup during removal
-    int isscalar;
     void* value;
-    raxRemoveWithFlag(rax, key, len, &value, &isscalar);
-    if (free_callback && value && !isscalar) free_callback(value);
+    raxRemove(rax, key, len, &value);
+    if (free_callback && value) free_callback(value);
     raxStop(&it);
     return 1;
 }

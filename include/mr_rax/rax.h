@@ -95,16 +95,12 @@
  *
  */
 
-#define RAX_NODE_MAX_SIZE ((1<<28)-1)
+#define RAX_NODE_MAX_SIZE ((1<<29)-1)
 typedef struct raxNode {
     uint32_t iskey:1;     /* Does this node contain a key? */
     uint32_t isnull:1;    /* Associated value is NULL (don't store it). */
     uint32_t iscompr:1;   /* Node is compressed. */
-    uint32_t isscalar:1;  /* Associated value is a scalar not an allocated pointer. */
-    // uint32_t reserved:4;
-    // uint32_t memo:8; // ml 20220401: used for next child offset
-    // uint32_t size:16;     /* Number of children, or compressed string len. */
-    uint32_t size:28;     /* Number of children, or compressed string len. */
+    uint32_t size:29;     /* Number of children, or compressed string len. */
     /* Data layout is as follows:
      *
      * If node is not compressed we have 'size' bytes, one for each children
@@ -223,7 +219,7 @@ void raxSetDebugMsg(int onoff);
 
 /* Internal API. May be used by the node callback in order to access rax nodes
  * in a low level way, so this function is exported as well. */
-void raxSetData(raxNode *n, void *data, int isscalar);
+void raxSetData(raxNode *n, void *data);
 void *raxGetData(raxNode *n);
 
 // mr_rax additions by ml 20220401
@@ -233,10 +229,10 @@ int raxSeekChildren(raxIterator* it, uint8_t* key, size_t len);
 int raxSeekSubtree(raxIterator* it, uint8_t* key, size_t len);
 int raxSeekSet(raxIterator* it);
 void raxShowHex(rax* rax);
-int raxInsertScalar(rax* rax, uint8_t* s, size_t len, uintptr_t data, uintptr_t* old);
-int raxTryInsertScalar(rax* rax, uint8_t* s, size_t len, uintptr_t data, uintptr_t* old);
-int raxRemoveScalar(rax* rax, uint8_t* s, size_t len, uintptr_t* old);
-int raxRemoveWithFlag(rax* rax, uint8_t* s, size_t len, void** old, int* pisscalar);
+// int raxInsertScalar(rax* rax, uint8_t* s, size_t len, uintptr_t data, uintptr_t* old);
+// int raxTryInsertScalar(rax* rax, uint8_t* s, size_t len, uintptr_t data, uintptr_t* old);
+// int raxRemoveScalar(rax* rax, uint8_t* s, size_t len, uintptr_t* old);
+// int raxRemoveWithFlag(rax* rax, uint8_t* s, size_t len, void** old, int* pisscalar);
 void raxFreeWithFlag(rax* rax);
 int raxFreeSubtreeWithCallback(rax* rax, uint8_t* key, size_t len, void (*free_callback)(void*));
 int raxFreeSubtree(rax* rax, uint8_t* key, size_t len);

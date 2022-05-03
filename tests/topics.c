@@ -94,7 +94,7 @@ int topic_fun(void) {
 
     // char pubtopic[] = "sport/tennis/matches";
     char pubtopic2[] = "baz/bam";
-    char pubtopic3[] = "foo/bar";
+    char pubtopic3[] = "foo/baz";
     // char pubtopic[] = "s";
     char pubtopic[] = "foo/bar";
 
@@ -111,27 +111,27 @@ int topic_fun(void) {
     mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic, 1);
     mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 2);
     // mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic, 2);
-    //uint8_t alias;
-    //int rc = mr_get_alias_by_topic(client_tree, 1, true, pubtopic, &alias);
-    //printf("mr_get_alias_by_topic:: rc: %d; alias: %u\n", rc, alias);
-    //char* aliastopic;
-    //rc = mr_get_topic_by_alias(client_tree, 1, true, 2, &aliastopic);
-    //printf("mr_get_topic_by_alias:: rc: %d; aliastopic: %s\n", rc, aliastopic);
-    mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 8);
-    // mr_upsert_client_topic_alias(client_tree, 1, false, pubtopic3, 8);
-    // mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 9);
     uint8_t alias;
+    int rc = mr_get_alias_by_topic(client_tree, 1, true, pubtopic, &alias);
+    printf("mr_get_alias_by_topic:: rc: %d; alias: %u\n", rc, alias);
+    char aliastopic[MAX_TOPIC_LEN];
+    rc = mr_get_topic_by_alias(client_tree, 1, true, 2, aliastopic);
+    printf("mr_get_topic_by_alias:: rc: %d; aliastopic: %s\n", rc, aliastopic);
+    //mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 3);
+    //mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic3, 1);
+    // mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 9);
+    //uint8_t alias;
     //int rc = mr_get_alias_by_topic(client_tree, 1, false, pubtopic, &alias);
     //printf("mr_get_alias_by_topic:: rc: %d; alias: %u\n", rc, alias);
-    char* aliastopic;
-    //rc = mr_get_topic_by_alias(client_tree, 1, false, 8, &aliastopic);
-    //printf("mr_get_topic_by_alias:: rc: %d; aliastopic: %s\n", rc, aliastopic);
+    // char aliastopic[MAX_TOPIC_LEN];
+    // rc = mr_get_topic_by_alias(client_tree, 1, false, 3, aliastopic);
+    // printf("mr_get_topic_by_alias:: rc: %d; aliastopic: %s\n", rc, aliastopic);
     //mr_remove_client_topic_aliases(client_tree, 1);
     //mr_remove_client_data(tc_tree, client_tree, 1);
 
     // raxShowHex(tc_tree);
     raxShowHex(client_tree);
-
+    // printf("raxShowHex\n");
     // raxIterator titer;
     // raxStart(&titer, tc_tree);
     // uint8_t val[4] = {'@','C','A'};
@@ -176,7 +176,7 @@ int topic_fun(void) {
 
     // raxStop(&tciter);
 
-    raxFreeWithFlag(client_tree);
+    raxFree(client_tree);
     raxFree(tc_tree);
     return 0;
 }
