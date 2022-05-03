@@ -41,7 +41,7 @@ endif()
 option(UNIT_TESTING "Build with unit tests" ON)
 
 if (UNIT_TESTING)
-    set(BUILD_STATIC_LIB ON)
+    # set(BUILD_STATIC_LIB ON)
     add_subdirectory(tests)
 endif()
 
