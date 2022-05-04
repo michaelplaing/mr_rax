@@ -245,9 +245,9 @@ int mr_remove_client_subscriptions(rax* tc_tree, rax* client_tree, const uint64_
     raxSeekChildren(&iter, inversion, 8 + 4);
     while(raxNextChild(&iter)) raxInsert(srax, iter.key, iter.key_len, NULL, NULL);
     raxStart(&iter, srax);
-    raxSeekSet(&iter);
+    raxSeek(&iter, "^", NULL, 0);
 
-    while(raxNextInSet(&iter)) {
+    while(raxNext(&iter)) {
         size_t stlen = iter.key_len - (8 + 4);
         char subtopic[stlen + 1];
         memcpy(subtopic, iter.key + 8 + 4, stlen);

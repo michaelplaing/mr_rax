@@ -2098,13 +2098,6 @@ int raxNextChild(raxIterator* it) {
     return 1;
 }
 
-int raxNextInSet(raxIterator* it) {
-    debugf("raxNextInSet\n");
-    int rc = raxNextChild(it);
-    debugf("raxNextInSet done\n");
-    return rc;
-}
-
 int raxSeekSubtree(raxIterator* it, uint8_t* key, size_t len) {
     debugf("raxSeekSubtree:: key: '%.*s'; len: %zu\n", (int)len, key, len);
     if (!raxSeek(it, "=", key, len)) return 0;
@@ -2139,14 +2132,6 @@ int raxSeekChildren(raxIterator* it, uint8_t* key, size_t len) {
         }
     }
     debugf("raxSeekChildren done\n");
-}
-
-int raxSeekSet(raxIterator* it) {
-    debugf("raxSeekSet\n");
-    raxTryInsert(it->rt, (uint8_t*)"", 0, NULL, NULL); // make a key if not already
-    int rc = raxSeekChildren(it, (uint8_t*)"", 0);
-    debugf("raxSeekSet done\n");
-    return rc;
 }
 
 void raxRecursiveShowHex(int level, int lpad, raxNode *n) {

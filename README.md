@@ -8,7 +8,7 @@ The **mr_rax** public functions are:
 
 - ``mr_remove_client_subscriptions()``: Remove all subscriptions for a client.
 
-- ``mr_get_subscribed_clients()``: For a published topic return the dedup'd sorted set of Client IDs from all matching subscriptions. ``raxSeekSet()/raxNextInSet()`` (see below) will efficiently iterate through this set. MQTT shared subscriptions are fully supported.
+- ``mr_get_subscribed_clients()``: For a published topic return the dedup'd sorted set of Client IDs from all matching subscriptions. MQTT shared subscriptions are fully supported.
 
 - ``mr_upsert_client_topic_alias()``: Insert or update a topic/alias pair for a client.
 
@@ -107,14 +107,11 @@ Some additions and modifications have been made to Rax including the following a
 
 - ``raxNextChild()``: Return the next immediate child key of the key sought above.
 
-- ``raxSeekSet()``:  Seek the beginning of a sorted set (a Rax tree with key depth 1), e.g. a set of Client IDs.
+- ``raxSeekSubtree()``: Seek a key in order to get it and its subtree keys using ``raxNext()``.
 
-- ``raxNextInSet()``: Return the next key in the set sought above.
-
-And for easier visualization of binary data, e.g. Client IDs:
+For easier visualization of binary data, e.g. Client IDs and timestamps:
 
 - ``raxShowHex()``
-
 
 These functions remove all the keys and nodes in a subtree.
 

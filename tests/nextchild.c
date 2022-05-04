@@ -52,8 +52,10 @@ int nctest(void) {
 
     raxSetDebugMsg(0);
     startTime = (float)clock()/CLOCKS_PER_SEC;
-    raxSeekSet(&i2);
-    while(raxNextInSet(&i2));
+    // raxSeekSet(&i2);
+    // while(raxNextInSet(&i2));
+    raxSeek(&i2, "^", NULL, 0);
+    while(raxNext(&i2));
     // for(uint64_t i = 0; raxNextInSet(&i2); i++) {
     //     for (int j = 0; j < 8; j++) v[j] = i >> ((7 - j) * 8) & 0xff;
     //     if (memcmp(i2.key, v, 8)) {

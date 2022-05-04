@@ -146,10 +146,9 @@ int topic_fun(void) {
     mr_get_subscribed_clients(tc_tree, client_set, pubtopic);
     raxIterator siter;
     raxStart(&siter, client_set);
+    raxSeek(&siter, "^", NULL, 0);
 
-    raxSeekSet(&siter);
-
-    while(raxNextInSet(&siter)) {
+    while(raxNext(&siter)) {
         uint64_t client = 0;
         for (int i = 0; i < 8; i++) client += siter.key[i] << ((8 - i - 1) * 8);
         printf(" %llu", client);
