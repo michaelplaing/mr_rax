@@ -183,6 +183,7 @@ typedef struct raxIterator {
     size_t key_max;         /* Max key len the current key buffer can hold. */
     unsigned char key_static_string[RAX_ITER_STATIC_LEN];
     raxNode *node;          /* Current node. Only for unsafe iteration. */
+    raxNode *start_node; // mr_rax additions 20220504 ml: LowWalkSeek starting node
     raxNode *stop_node; // mr_rax additions 20220401 ml: terminate ascent
     raxStack stack;         /* Stack used for unsafe iteration. */
     size_t child_offset; // current child offset
@@ -224,12 +225,12 @@ void *raxGetData(raxNode *n);
 
 // mr_rax additions by ml 20220401
 int raxNextChild(raxIterator* it);
-int raxSeekChildren(raxIterator* it, uint8_t* key, size_t len);
+int raxSeekChildren(raxIterator* it, uint8_t* key, size_t len, raxNode* start_node);
 int raxSeekSubtree(raxIterator* it, uint8_t* key, size_t len);
 void raxShowHex(rax* rax);
 int raxFreeSubtreeWithCallback(rax* rax, uint8_t* key, size_t len, void (*free_callback)(void*));
 int raxFreeSubtree(rax* rax, uint8_t* key, size_t len);
-void *raxFindRelative(rax* rax, raxIterator* iter, uint8_t* key, size_t key_len);
+void *raxFindRelative(raxIterator* iter, uint8_t* key, size_t key_len);
 raxIterator* raxIteratorDup(raxIterator* piter);
 
 #endif

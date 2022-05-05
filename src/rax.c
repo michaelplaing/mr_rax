@@ -535,7 +535,8 @@ int raxIteratorPushChildOffset(raxIterator *it, uint8_t child_offset) {
 }
 
 static inline size_t raxLowWalkSeek(unsigned char *s, size_t len, int *splitpos, raxIterator* it) {
-    raxNode *h = it->rt->head;
+    // raxNode *h = it->rt->head;
+    raxNode *h = it->start_node;
 
     size_t i = 0;
     size_t j = 0;
@@ -1642,7 +1643,7 @@ int raxSeekEle(raxIterator *it, const char *op, unsigned char *ele, size_t len) 
      * perform a lookup, and later invoke the prev/next key code that
      * we already use for iteration. */
     int splitpos = 0;
-    size_t i = raxLowWalkSeek(ele,len,&splitpos, it);
+    size_t i = raxLowWalkSeek(ele, len, &splitpos, it);
 
     /* Return OOM on incomplete stack info. */
     if (it->stack.oom) return 0;
@@ -1748,16 +1749,21 @@ int raxSeekEle(raxIterator *it, const char *op, unsigned char *ele, size_t len) 
     return 1;
 }
 
-int raxSeek(raxIterator *it, const char *op, unsigned char *ele, size_t len) {
+int raxSeekGeneric(raxIterator *it, const char *op, unsigned char *ele, size_t len, raxNode* start_node) {
     it->stack.items = 0; /* Just resetting. Intialized by raxStart(). */
     it->flags |= RAX_ITER_JUST_SEEKED;
     it->flags &= ~RAX_ITER_EOF;
     it->key_len = 0;
     it->node = NULL;
+    it->start_node = start_node == NULL ? it->rt->head : start_node;
     it->stop_node = it->rt->head;
     it->child_offset = 0;
     it->cpos = 0;
     return raxSeekEle(it, op, ele, len);
+}
+
+int raxSeek(raxIterator *it, const char *op, unsigned char *ele, size_t len) {
+    return raxSeekGeneric(it, op, ele, len, NULL);
 }
 
 /* Go to the next element in the scope of the iterator 'it'.
@@ -2105,9 +2111,9 @@ int raxSeekSubtree(raxIterator* it, uint8_t* key, size_t len) {
     return 1;
 }
 
-int raxSeekChildren(raxIterator* it, uint8_t* key, size_t len) {
+int raxSeekChildren(raxIterator* it, uint8_t* key, size_t len, raxNode* start_node) {
     debugf("raxSeekChildren:: key: '%.*s'; len: %zu\n", (int)len, key, len);
-    if (!raxSeek(it, "=", key, len)) return 0;
+    if (!raxSeekGeneric(it, "=", key, len, start_node)) return 0;
     if (len) it->stop_node = raxStackPeek(&it->stack); // terminate on ascent above starting node
     if (it->flags & RAX_ITER_EOF) return 1;
 
@@ -2224,8 +2230,40 @@ int raxFreeSubtree(rax* rax, uint8_t* key, size_t len) {
 //     return raxGetData(h);
 // }
 
-void* raxFindRelative(rax* rax, raxIterator* iter, uint8_t* key, size_t key_len) {
-    return raxFind(rax, key, key_len);
+void* raxFindUsingSeek(raxIterator* iter, uint8_t* key, size_t key_len, raxNode* start_node) {
+    if (!raxSeekGeneric(iter, "=", key, key_len, start_node)) return NULL;
+    if (iter->flags & RAX_ITER_EOF) return raxNotFound;
+    return raxGetData(iter->node);
+}
+
+void* raxFindRelative(raxIterator* iter, uint8_t* key, size_t key_len) {
+    printf(
+        "key: '%.*s', key_len: %zu; iter->key: '%.*s'; iter->key_len: %zu",
+        (int)key_len, key, key_len, (int)iter->key_len, iter->key, iter->key_len
+    );
+
+    if (iter->key_len == 0) {
+        puts("");
+        return raxFindUsingSeek(iter, key, key_len, NULL);
+    }
+
+    if (iter->key_len == key_len && memcmp(iter->key, key, key_len) == 0) return raxGetData(iter->node);
+
+    size_t key_len_min = iter->key_len < key_len ? iter->key_len : key_len;
+    size_t mlen;
+    for (mlen = 0; mlen < key_len_min; mlen++) if (iter->key[mlen] != key[mlen]) break;
+
+    printf("; key_len_min: %zu; mlen: %zu", key_len_min, mlen);
+
+    while(iter->key_len > mlen) {
+        iter->node = raxStackPop(&iter->stack); // ascend
+        int todel = iter->node->iscompr ? iter->node->size : 1;
+        raxIteratorDelChars(iter, todel);
+    }
+
+    printf("; new:: iter->key: '%.*s'; iter->key_len: %zu\n", (int)iter->key_len, iter->key, iter->key_len);
+    // return raxFindUsingSeek(iter, key, key_len, iter->node);
+    return raxFindUsingSeek(iter, key, key_len, NULL);
 }
 
 raxIterator* raxIteratorDup(raxIterator* piter) {

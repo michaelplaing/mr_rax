@@ -129,8 +129,8 @@ int topic_fun(void) {
     //mr_remove_client_topic_aliases(client_tree, 1);
     //mr_remove_client_data(tc_tree, client_tree, 1);
 
-    // raxShowHex(tc_tree);
-    raxShowHex(client_tree);
+    raxShowHex(tc_tree);
+    // raxShowHex(client_tree);
     // printf("raxShowHex\n");
     // raxIterator titer;
     // raxStart(&titer, tc_tree);
