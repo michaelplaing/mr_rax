@@ -33,6 +33,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 /* Representation of a radix tree as implemented in this file, that contains
  * the strings "foo", "foobar" and "footer" after the insertion of each
@@ -225,8 +226,8 @@ void *raxGetData(raxNode *n);
 
 // mr_rax additions by ml 20220401
 int raxNextChild(raxIterator* it);
-int raxSeekChildren(raxIterator* it, uint8_t* key, size_t len, raxNode* start_node);
-int raxSeekSubtree(raxIterator* it, uint8_t* key, size_t len);
+int raxSeekChildren(raxIterator* it, uint8_t* key, size_t len, bool isrelative);
+int raxSeekSubtree(raxIterator* it, uint8_t* key, size_t len, bool isrelative);
 void raxShowHex(rax* rax);
 int raxFreeSubtreeWithCallback(rax* rax, uint8_t* key, size_t len, void (*free_callback)(void*));
 int raxFreeSubtree(rax* rax, uint8_t* key, size_t len);
