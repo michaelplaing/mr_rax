@@ -71,7 +71,7 @@ int mr_get_subscribe_topic(const char* subtopic, char* topic, char* share, char*
     return 0;
 }
 
-static int mr_insert_topic_tree(rax* tc_tree, const char* topic) {
+static int mr_insert_topic_tree(rax* topic_tree, const char* topic) {
     size_t tlen = strlen(topic);
     char* tokenv[MAX_TOKENS];
     char topic3[tlen + 1];
@@ -82,13 +82,13 @@ static int mr_insert_topic_tree(rax* tc_tree, const char* topic) {
 
     for (int i = 0; i < numtokens; i++) {
         strlcat(topic_key, tokenv[i], tlen + 1);
-        raxTryInsert(tc_tree, (uint8_t*)topic_key, strlen(topic_key), NULL, NULL);
+        raxTryInsert(topic_tree, (uint8_t*)topic_key, strlen(topic_key), NULL, NULL);
     }
 
     return 0;
 }
 
-int mr_insert_subscription(rax* tc_tree, rax* client_tree, const char* subtopic, const uint64_t client) {
+int mr_insert_subscription(rax* topic_tree, rax* client_tree, const char* subtopic, const uint64_t client) {
     size_t stlen = strlen(subtopic);
     char topic[stlen + 3];
     char share[stlen + 1];
@@ -99,7 +99,7 @@ int mr_insert_subscription(rax* tc_tree, rax* client_tree, const char* subtopic,
     size_t slen = strlen(share);
     size_t tklen = strlen(topic_key);
 
-    mr_insert_topic_tree(tc_tree, topic);
+    mr_insert_topic_tree(topic_tree, topic);
 
     // insert sub/client in subscription subtree
     size_t tklen2 = tklen + 1 + slen + (slen ? 1 : 0);
@@ -108,15 +108,15 @@ int mr_insert_subscription(rax* tc_tree, rax* client_tree, const char* subtopic,
 
     if (slen) { // shared subscription sub-hierarchy
         memcpy((void*)topic_key2 + tklen, &shared_mark, 1);
-        raxTryInsert(tc_tree, (uint8_t*)topic_key2, tklen + 1, NULL, NULL);
+        raxTryInsert(topic_tree, (uint8_t*)topic_key2, tklen + 1, NULL, NULL);
         memcpy((void*)topic_key2 + tklen + 1, (void*)share, slen);
-        raxTryInsert(tc_tree, (uint8_t*)topic_key2, tklen + 1 + slen, NULL, NULL);
+        raxTryInsert(topic_tree, (uint8_t*)topic_key2, tklen + 1 + slen, NULL, NULL);
         topic_key2[tklen + 1 + slen] = client_mark;
-        raxTryInsert(tc_tree, (uint8_t*)topic_key2, tklen2, NULL, NULL);
+        raxTryInsert(topic_tree, (uint8_t*)topic_key2, tklen2, NULL, NULL);
     }
     else { // regular subscription sub-hierarchy
         memcpy((void*)topic_key2 + tklen, &client_mark, 1);
-        raxTryInsert(tc_tree, (uint8_t*)topic_key2, tklen + 1, NULL, NULL);
+        raxTryInsert(topic_tree, (uint8_t*)topic_key2, tklen + 1, NULL, NULL);
     }
 
     // get the client bytes in network order (big endian)
@@ -124,7 +124,7 @@ int mr_insert_subscription(rax* tc_tree, rax* client_tree, const char* subtopic,
     for (int i = 0; i < 8; i++) clientv[i] = client >> ((7 - i) * 8) & 0xff;
 
     memcpy((void*)topic_key2 + tklen2, (void*)clientv, 8);
-    raxInsert(tc_tree, (uint8_t*)topic_key2, tklen2 + 8, NULL, NULL); // insert the client
+    raxInsert(topic_tree, (uint8_t*)topic_key2, tklen2 + 8, NULL, NULL); // insert the client
 
     // invert
     char topic3[8 + 4 + stlen];
@@ -138,14 +138,14 @@ int mr_insert_subscription(rax* tc_tree, rax* client_tree, const char* subtopic,
     return 0;
 }
 
-static int mr_trim_topic(rax* tc_tree, raxIterator* piter, char* topic_key, size_t len) {
-    raxSeekChildren(piter, (uint8_t*)topic_key, len, false);
+static int mr_trim_topic(rax* topic_tree, raxIterator* piter, char* topic_key, size_t len) {
+    raxSeekChildren(piter, (uint8_t*)topic_key, len);
     if (raxNextChild(piter)) return 0; // has children still
-    raxRemove(tc_tree, (uint8_t*)topic_key, len, NULL);
+    raxRemove(topic_tree, (uint8_t*)topic_key, len, NULL);
     return 1;
 }
 
-static int mr_trim_topic_tree(rax* tc_tree, raxIterator* piter, const char* topic, char* topic_key) {
+static int mr_trim_topic_tree(rax* topic_tree, raxIterator* piter, const char* topic, char* topic_key) {
     size_t tlen = strlen(topic);
     char topic3[tlen + 1];
     strlcpy(topic3, topic, tlen + 1);
@@ -155,14 +155,14 @@ static int mr_trim_topic_tree(rax* tc_tree, raxIterator* piter, const char* topi
     size_t len = strlen(topic_key);
 
     for (int i = (numtokens - 1); i >= 0; i--, count++) {
-        if (!mr_trim_topic(tc_tree, piter, topic_key, len)) return count;
+        if (!mr_trim_topic(topic_tree, piter, topic_key, len)) return count;
         len -= strlen(tokenv[i]);
     }
 
     return count;
 }
 
-static int mr_remove_subscription_tc_tree(rax* tc_tree, const char* subtopic, const uint64_t client) {
+static int mr_remove_subscription_tc_tree(rax* topic_tree, const char* subtopic, const uint64_t client) {
     size_t stlen = strlen(subtopic);
     char topic[stlen + 3];
     char share[stlen + 1];
@@ -188,20 +188,20 @@ static int mr_remove_subscription_tc_tree(rax* tc_tree, const char* subtopic, co
 
     for (int i = 0; i < 8; i++) topic_key2[tklen2 + i] = client >> ((7 - i) * 8) & 0xff;
 
-    if (raxRemove(tc_tree, (uint8_t*)topic_key2, tklen2 + 8, NULL)) { // regular or share client
+    if (raxRemove(topic_tree, (uint8_t*)topic_key2, tklen2 + 8, NULL)) { // regular or share client
         raxIterator iter;
-        raxStart(&iter, tc_tree);
+        raxStart(&iter, topic_tree);
 
         // trim hierarchy as long as there are no more child keys
-        if (mr_trim_topic(tc_tree, &iter, topic_key2, tklen2)) { // regular or share client mark
+        if (mr_trim_topic(topic_tree, &iter, topic_key2, tklen2)) { // regular or share client mark
             int trimmed = 1;
 
             if (slen) {
-                trimmed = mr_trim_topic(tc_tree, &iter, topic_key2, tlen + 1 + slen); // share
-                if (trimmed) trimmed = mr_trim_topic(tc_tree, &iter, topic_key2, tlen + 1); // shared mark
+                trimmed = mr_trim_topic(topic_tree, &iter, topic_key2, tlen + 1 + slen); // share
+                if (trimmed) trimmed = mr_trim_topic(topic_tree, &iter, topic_key2, tlen + 1); // shared mark
             }
 
-            if (trimmed) mr_trim_topic_tree(tc_tree, &iter, topic, topic_key); // topic
+            if (trimmed) mr_trim_topic_tree(topic_tree, &iter, topic, topic_key); // topic
         }
 
         raxStop(&iter);
@@ -229,20 +229,20 @@ static int mr_remove_subscription_client_tree(rax* client_tree, const char* subt
     return 0;
 }
 
-int mr_remove_subscription(rax* tc_tree, rax* client_tree, const char* subtopic, const uint64_t client) {
-    mr_remove_subscription_tc_tree(tc_tree, subtopic, client);
+int mr_remove_subscription(rax* topic_tree, rax* client_tree, const char* subtopic, const uint64_t client) {
+    mr_remove_subscription_tc_tree(topic_tree, subtopic, client);
     mr_remove_subscription_client_tree(client_tree, subtopic, client);
     return 0;
 }
 
-int mr_remove_client_subscriptions(rax* tc_tree, rax* client_tree, const uint64_t client) {
+int mr_remove_client_subscriptions(rax* topic_tree, rax* client_tree, const uint64_t client) {
     rax* srax = raxNew();
     raxIterator iter;
     raxStart(&iter, client_tree);
     uint8_t inversion[8 + 4];
     for (int i = 0; i < 8; i++) inversion[i] = client >> ((7 - i) * 8) & 0xff;
     memcpy(inversion + 8, "subs", 4);
-    raxSeekChildren(&iter, inversion, 8 + 4, false);
+    raxSeekChildren(&iter, inversion, 8 + 4);
     while(raxNextChild(&iter)) raxInsert(srax, iter.key, iter.key_len, NULL, NULL);
     raxStart(&iter, srax);
     raxSeek(&iter, "^", NULL, 0);
@@ -252,7 +252,7 @@ int mr_remove_client_subscriptions(rax* tc_tree, rax* client_tree, const uint64_
         char subtopic[stlen + 1];
         memcpy(subtopic, iter.key + 8 + 4, stlen);
         subtopic[stlen] = '\0';
-        mr_remove_subscription_tc_tree(tc_tree, subtopic, client);
+        mr_remove_subscription_tc_tree(topic_tree, subtopic, client);
     }
 
     raxStop(&iter);
@@ -261,40 +261,32 @@ int mr_remove_client_subscriptions(rax* tc_tree, rax* client_tree, const uint64_
     return 0;
 }
 
-static int mr_get_topic_clients(rax* tc_tree, raxIterator* iter, rax* srax, uint8_t* key, size_t key_len) {
+static int mr_get_topic_clients(raxIterator* iter, rax* srax, uint8_t* key, size_t key_len) {
     // get regular subs
     key[key_len] = client_mark;
-    raxSeekChildren(iter, key, key_len + 1, true);
+    raxSeekChildrenRelative(iter, key, key_len + 1);
     while(raxNextChild(iter)) raxTryInsert(srax, iter->key + iter->key_len - 8, 8, NULL, NULL);
 
     // get shared subs
     key[key_len] = shared_mark;
 
-    if (raxSeekSubtree(iter, key, key_len + 1, true)) {
+    if (raxSeekSubtreeRelative(iter, key, key_len + 1)) {
         raxIterator* piter2 = raxIteratorDup(iter);
-        // raxIterator iter2;
-        // raxStart(&iter2, tc_tree);
 
         while(raxNext(iter)) { // randomly pick one client per share
             if (iter->key[iter->key_len - 1] != 0xff) continue; // consider only client marks
-            // raxSeekChildren(&iter2, iter->key, iter->key_len, NULL);
-            raxSeekChildren(piter2, iter->key, iter->key_len, true);
+            raxSeekChildrenRelative(piter2, iter->key, iter->key_len);
             size_t count = 0;
-            // while (raxNextChild(&iter2)) count++;
             while (raxNextChild(piter2)) count++;
 
             if (count) {
                 int choice = arc4random() % count;
-                // raxSeekChildren(&iter2, iter->key, iter->key_len, NULL);
-                raxSeekChildren(piter2, iter->key, iter->key_len, true);
-                // for (int i = 0; i < (choice + 1); i++) raxNextChild(&iter2);
+                raxSeekChildrenRelative(piter2, iter->key, iter->key_len);
                 for (int i = 0; i < (choice + 1); i++) raxNextChild(piter2);
-                // raxTryInsert(srax, iter2.key + iter2.key_len - 8, 8, NULL, NULL);
                 raxTryInsert(srax, piter2->key + piter2->key_len - 8, 8, NULL, NULL);
             }
         }
 
-        // raxStop(&iter2);
         raxStop(piter2);
     }
 
@@ -302,7 +294,7 @@ static int mr_get_topic_clients(rax* tc_tree, raxIterator* iter, rax* srax, uint
 }
 
 static int mr_probe_subscriptions(
-    rax* tc_tree, raxIterator* iter, rax* srax, const size_t max_len, char* topic, int level, char** tokenv, size_t numtokens
+    raxIterator* iter, rax* srax, const size_t max_len, char* topic, int level, char** tokenv, size_t numtokens
 ) {
     char test_key[max_len];
     char* token;
@@ -310,7 +302,7 @@ static int mr_probe_subscriptions(
     while (level < numtokens) {
         snprintf(test_key, max_len, "%s#", topic);
         if (raxFindRelative(iter, (uint8_t*)test_key, strlen(test_key)) != raxNotFound) {
-            mr_get_topic_clients(tc_tree, iter, srax, (uint8_t*)test_key, strlen(test_key));
+            mr_get_topic_clients(iter, srax, (uint8_t*)test_key, strlen(test_key));
         }
 
         if (level == (numtokens - 1)) break; // only '#' is valid at this level
@@ -318,13 +310,13 @@ static int mr_probe_subscriptions(
         snprintf(test_key, max_len, "%s+", topic);
         if (raxFindRelative(iter, (uint8_t*)test_key, strlen(test_key)) != raxNotFound) {
             if (level == (numtokens - 2)) {
-                mr_get_topic_clients(tc_tree, iter, srax, (uint8_t*)test_key, strlen(test_key));
+                mr_get_topic_clients(iter, srax, (uint8_t*)test_key, strlen(test_key));
             }
             else {
                 char *token2v[numtokens];
                 for (int i = 0; i < numtokens; i++) token2v[i] = tokenv[i];
                 token2v[level + 1] = "+";
-                mr_probe_subscriptions(tc_tree, iter, srax, max_len, test_key, level + 1, token2v, numtokens);
+                mr_probe_subscriptions(iter, srax, max_len, test_key, level + 1, token2v, numtokens);
             }
         }
 
@@ -333,7 +325,7 @@ static int mr_probe_subscriptions(
         strlcpy(test_key, topic, max_len);
         if (raxFindRelative(iter, (uint8_t*)test_key, strlen(test_key)) != raxNotFound) {
             if (level == (numtokens - 2)) {
-                mr_get_topic_clients(tc_tree, iter, srax, (uint8_t*)test_key, strlen(topic));
+                mr_get_topic_clients(iter, srax, (uint8_t*)test_key, strlen(topic));
             }
         }
         else {
@@ -346,7 +338,7 @@ static int mr_probe_subscriptions(
     return 0;
 }
 
-int mr_get_subscribed_clients(rax* tc_tree, rax* srax, const char* pubtopic) {
+int mr_get_subscribed_clients(rax* topic_tree, rax* srax, const char* pubtopic) {
     char* tokenv[MAX_TOKENS];
     size_t ptlen = strlen(pubtopic);
     char topic[ptlen + 3];
@@ -356,11 +348,11 @@ int mr_get_subscribed_clients(rax* tc_tree, rax* srax, const char* pubtopic) {
     strlcpy(topic3, topic, tlen + 1);
     size_t numtokens = mr_tokenize_topic(topic3, tokenv); // modifies topic3 and points into it from tokenv
     raxIterator iter;
-    raxStart(&iter, tc_tree);
+    raxStart(&iter, topic_tree);
     strlcpy(topic, tokenv[0], tlen + 1);
 
     if (raxFindRelative(&iter, (uint8_t*)topic, strlen(topic)) != raxNotFound) {
-        mr_probe_subscriptions(tc_tree, &iter, srax, tlen + 1, topic, 0, tokenv, numtokens);
+        mr_probe_subscriptions(&iter, srax, tlen + 1, topic, 0, tokenv, numtokens);
     }
 
     raxStop(&iter);
@@ -401,7 +393,7 @@ int mr_upsert_client_topic_alias(
     raxIterator iter;
     raxStart(&iter, client_tree);
 
-    if (raxSeekChildren(&iter, (uint8_t*)topicbyalias, 24 + 1, false) && (raxNextChild(&iter))) {
+    if (raxSeekChildren(&iter, (uint8_t*)topicbyalias, 24 + 1) && (raxNextChild(&iter))) {
         size_t ptlen2 = iter.key_len - (24 + 1);
         char aliasbytopic2[24 + ptlen2]; // <Client ID>"aliasesclientabt"<pubtopic>
         memcpy(aliasbytopic2, aliasbytopic, 24);
@@ -410,7 +402,7 @@ int mr_upsert_client_topic_alias(
         raxRemove(client_tree, iter.key, iter.key_len, NULL);
     }
 
-    if (raxSeekChildren(&iter, (uint8_t*)aliasbytopic, 24 + ptlen, false) && raxNextChild(&iter)) {
+    if (raxSeekChildren(&iter, (uint8_t*)aliasbytopic, 24 + ptlen) && raxNextChild(&iter)) {
         char topicbyalias2[24 + 1]; // <Client ID>"aliasesclienttba"<alias>
         memcpy(topicbyalias2, topicbyalias, 24);
         memcpy(topicbyalias2 + 24, iter.key + 24 + ptlen, 1);
@@ -443,7 +435,7 @@ int mr_get_alias_by_topic(rax* client_tree, const uint64_t client, const bool is
     raxIterator iter;
     raxStart(&iter, client_tree);
 
-    if (raxSeekChildren(&iter, (uint8_t*)aliasbytopic, 24 + ptlen, false) && raxNextChild(&iter)) {
+    if (raxSeekChildren(&iter, (uint8_t*)aliasbytopic, 24 + ptlen) && raxNextChild(&iter)) {
         *palias = iter.key[iter.key_len - 1];
     }
     else {
@@ -463,7 +455,7 @@ int mr_get_topic_by_alias(rax* client_tree, const uint64_t client, const bool is
     raxIterator iter;
     raxStart(&iter, client_tree);
 
-    if (raxSeekChildren(&iter, (uint8_t*)topicbyalias, 24 + 1, false) && raxNextChild(&iter)) {
+    if (raxSeekChildren(&iter, (uint8_t*)topicbyalias, 24 + 1) && raxNextChild(&iter)) {
         size_t ptlen = iter.key_len - (24 + 1);
         memcpy(pubtopic, iter.key + 24 + 1, ptlen);
         pubtopic[ptlen] = '\0';
@@ -476,8 +468,8 @@ int mr_get_topic_by_alias(rax* client_tree, const uint64_t client, const bool is
     return 0;
 }
 
-int mr_remove_client_data(rax* tc_tree, rax* client_tree, uint64_t client) {
-    mr_remove_client_subscriptions(tc_tree, client_tree, client);
+int mr_remove_client_data(rax* topic_tree, rax* client_tree, uint64_t client) {
+    mr_remove_client_subscriptions(topic_tree, client_tree, client);
     uint8_t clientv[8];
     for (int i = 0; i < 8; i++) clientv[i] = client >> ((7 - i) * 8) & 0xff;
     raxFreeSubtreeWithCallback(client_tree, clientv, 8, rax_free);
