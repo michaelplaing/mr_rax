@@ -22,11 +22,11 @@ The **mr_rax** public functions are:
 
 This project is set up for use as one of the CMake subprojects in a comprehensive MQTT project(s).
 
-## The unified topic/client (TC) tree
+## The Topic Tree
 
-The external TC tree conforms to MQTT.
+The external Topic Tree conforms to MQTT.
 
-The internal TC tree is composed of:
+The internal Topic Tree is composed of:
 
 - The root;
 - The hierarchy token:
@@ -49,7 +49,7 @@ And for shared subscription clients:
 
 ### Subscription examples:
 
-If the subscription topic is ``foo/bar`` and the Client ID is ``1``, then the normalized entry in the TC tree would be:
+If the subscription topic is ``foo/bar`` and the Client ID is ``1``, then the normalized entry in the Topic Tree would be:
 
 ``@foobar<0xff><0x0000000000000001>``
 
@@ -101,13 +101,24 @@ Rax is a binary character based adaptive radix prefix tree. This means that comm
 
 There is much more information in the Rax README and ``rax.c``.
 
-Some additions and modifications have been made to Rax including the following added functions needed by the ``mr_*()`` functions above. There is some experimental code to avoid repetitive scanning of node data for the next child node index, which is particularly important for scanning wide spans of binary Client IDs.
+Some additions and modifications have been made to Rax including the following added functions needed by the ``mr_*()`` functions above. There are enhancements to avoid repetitive scanning of node data for the next child node index, which are particularly important for scanning wide spans of binary Client IDs.
 
 - ``raxSeekChildren()``: Seek a key in order to get its immediate child keys.
 
 - ``raxNextChild()``: Return the next immediate child key of the key sought above.
 
 - ``raxSeekSubtree()``: Seek a key in order to get it and its subtree keys using ``raxNext()``.
+
+To further speed up finds and traverses in a Rax tree, especially when handling related keys, the following additions make
+use of state to proceed in their tasks differentially from the previous state.
+
+- ``raxFindRelative()``: Find the value of a key relative to the previous key.
+
+- ``raxSeekRelative()``: Seek a key relative to the previous key.
+
+- ``raxSeekChildrenRelative()``: Seek a key relative to the previous key in order to get its immediate child keys.
+
+- ``raxSeekSubtreeRelative()``: Seek a key relative to the previous key in order to get it and its subtree keys using ``raxNext()``.
 
 For easier visualization of binary data, e.g. Client IDs and timestamps:
 
@@ -119,7 +130,7 @@ These functions remove all the keys and nodes in a subtree.
 
 - ``raxFreeSubtreeWithCallback()``
 
-### Overlaying the TC tree on Rax
+### Overlaying the Topic Tree on Rax
 
 Each token subtree in a normalized topic is stored as a key. The client mark subtree, shared mark subtree and share subtree are also keys. Finally, the entire topic with Client ID is a key. Hence inserting ``@foobar<0xff><0x0000000000000001>`` would result in the following 5 keys:
 ```
@@ -150,7 +161,7 @@ When ``@foobar<0xff><0x0000000000000002>`` is also inserted, we get:
                                     ↑
 ```
 
-The additions to Rax include ``raxShowHex()``. When the 11 subscriptions above are applied to the TC tree they result in the following ASCII art of the Rax internal structures, illustrating prefix compression, node compression and adaptive node sizes:
+The additions to Rax include ``raxShowHex()``. When the 11 subscriptions above are applied to the Topic Tree they result in the following ASCII art of the Rax internal structures, illustrating prefix compression, node compression and adaptive node sizes:
 ```
 [$@]
  `-($) "$SYS" -> "foo" -> [#] -> [0xff] -> "0x0000000000000001" -> []
@@ -174,13 +185,13 @@ The additions to Rax include ``raxShowHex()``. When the 11 subscriptions above a
 ```
 A full explanation of the notation above is in the Rax README and ``rax.c``; a tricky part is that edge bytes pointing to nodes are not stored in the nodes themselves.
 
-### The TC tree search strategy
+### The Topic Tree search strategy
 
 This is the strategy used by ``mr_get_subscribed_clients()`` to extract a dedup'd list of subscribed Client IDs when provided with a valid publish topic (no wildcards).
 
 The strategy is repeatedly executed in 2 phases until done:
 
-1) a subscribe topic (may have wildcards) is found in the TC tree that matches the publish topic; then
+1) a subscribe topic (may have wildcards) is found in the Topic Tree that matches the publish topic; then
 
 2) the normal and/or shared subscription Client IDs associated with the subscribe topic, if there are any, are found and added to the unique set of Client IDs.
 
@@ -188,7 +199,7 @@ This is repeated until all possible matches have been found and the Client IDs n
 
 For phase 1, the internally formatted publish topic is tokenized using '/' as the separator. For example, the external publish topic ``foo/bar`` is tokenized as: ``@``; ``foo``; ``bar``.
 
-Then 3 searches are performed in order at each level of the TC tree except for the last which has 1 search. For the example the levels are: ``@``; ``@foo``, ``@foobar`` and the search predicates are: ``@#``, ``@+``, ``@foo``; ``@foo#``, ``@foo+``, ``@foobar``; ``@foobar#``. The last search is necessary because ``#`` matches the level above.
+Then 3 searches are performed in order at each level of the Topic Tree except for the last which has 1 search. For the example the levels are: ``@``; ``@foo``, ``@foobar`` and the search predicates are: ``@#``, ``@+``, ``@foo``; ``@foo#``, ``@foo+``, ``@foobar``; ``@foobar#``. The last search is necessary because ``#`` matches the level above.
 
 1) For a found search predicate ending in ``#``, we gather its Client IDs (phase 2) and continue the searches unless this is the last level, in which case we are done with this subtree.
 
@@ -214,9 +225,11 @@ Phase 2 of the strategy, gathering Client IDs for a search predicate, proceeds i
 
 2) Append the Shared Mark (``0xef``) to the current key and search for it. If found iterate over the share name children, e.g. ``baz``, and, for each share name, append the Client Mark, get its Client ID children, then select one at random and insert it into the result set.
 
-Running ``mr_get_subscribed_clients()`` using publish topic ``foo/bar`` against our TC tree above results in Client IDs: `` 1 2 4 6 7 8``. Repeatedly running it will result in `` 1 2 5 6 7 8`` about half the time – this is due to the share ``baz`` being shared by clients ``4`` and ``5`` whereas share ``bazzle`` has a single client and the other subscriptions are normal.
+Running ``mr_get_subscribed_clients()`` using publish topic ``foo/bar`` against our Topic Tree above results in Client IDs: `` 1 2 4 6 7 8``. Repeatedly running it will result in `` 1 2 5 6 7 8`` about half the time – this is due to the share ``baz`` being shared by clients ``4`` and ``5`` whereas share ``bazzle`` has a single client and the other subscriptions are normal.
 
 Note also that Client ID ``1`` only appears once although it is present in 2 matching subscriptions: ``foo/bar`` and ``foo/#``; also Client ID ``3`` is not present since subscription topic ``foo/bar/`` does not match the publish topic.
+
+The combination of compression, which shortens the key path, with relative key searches yields an average search key depth descending toward 1. Hence, although there are many searches in the strategy, performance is near linear, dependent upon the number of tokens in the publish topic.
 
 ### The Client tree
 

@@ -222,9 +222,8 @@ void raxSetDebugMsg(int onoff);
 /* Internal API. May be used by the node callback in order to access rax nodes
  * in a low level way, so this function is exported as well. */
 void raxSetData(raxNode *n, void *data);
-void *raxGetData(raxNode *n);
 
-// mr_rax additions by ml 20220401
+// mr_rax additions by ml
 int raxNextChild(raxIterator* it);
 int raxSeekChildren(raxIterator* it, uint8_t* key, size_t len);
 int raxSeekChildrenRelative(raxIterator* it, uint8_t* key, size_t len);
@@ -233,6 +232,7 @@ int raxSeekSubtreeRelative(raxIterator* it, uint8_t* key, size_t len);
 void raxShowHex(rax* rax);
 int raxFreeSubtreeWithCallback(rax* rax, uint8_t* key, size_t len, void (*free_callback)(void*));
 int raxFreeSubtree(rax* rax, uint8_t* key, size_t len);
+int raxSeekRelative(raxIterator *it, unsigned char *key, size_t key_len);
 void *raxFindRelative(raxIterator* iter, uint8_t* key, size_t key_len);
 raxIterator* raxIteratorDup(raxIterator* piter);
 
