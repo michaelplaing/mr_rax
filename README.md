@@ -229,7 +229,7 @@ Running ``mr_get_subscribed_clients()`` using publish topic ``foo/bar`` against 
 
 Note also that Client ID ``1`` only appears once although it is present in 2 matching subscriptions: ``foo/bar`` and ``foo/#``; also Client ID ``3`` is not present since subscription topic ``foo/bar/`` does not match the publish topic.
 
-The combination of compression, which shortens the key path, with relative key searches yields an average search key depth descending toward 1. Hence, although there are many searches in the strategy, performance is near linear, dependent upon the number of tokens in the publish topic.
+The combination of compression, which shortens the key path, with relative key searches yields an average search key depth descending toward 1. Hence, although there are many searches in the strategy, performance is near linear, dependent upon the number of tokens in the publish topic and the number of ``+`` wildcards, which have a multiplicative effect..
 
 ### The Client tree
 
