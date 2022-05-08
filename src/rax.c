@@ -1369,6 +1369,8 @@ int raxIteratorNextStep(raxIterator *it, int noup) {
     size_t orig_key_len = it->key_len;
     size_t orig_stack_items = it->stack.items;
     raxNode *orig_node = it->node;
+    size_t orig_child_offset = it->child_offset;
+    size_t orig_cpos = it->cpos;
 
     while(1) {
         int children = it->node->iscompr ? 1 : it->node->size;
@@ -1409,6 +1411,8 @@ int raxIteratorNextStep(raxIterator *it, int noup) {
                     it->stack.items = orig_stack_items;
                     it->key_len = orig_key_len;
                     it->node = orig_node;
+                    it->child_offset = orig_child_offset;
+                    it->cpos = orig_cpos;
                     return 1;
                 }
                 /* If there are no children at the current node, try parent's
@@ -1489,6 +1493,8 @@ int raxIteratorPrevStep(raxIterator *it, int noup) {
     size_t orig_key_len = it->key_len;
     size_t orig_stack_items = it->stack.items;
     raxNode *orig_node = it->node;
+    size_t orig_child_offset = it->child_offset;
+    size_t orig_cpos = it->cpos;
 
     while(1) {
         int old_noup = noup;
@@ -1499,6 +1505,8 @@ int raxIteratorPrevStep(raxIterator *it, int noup) {
             it->stack.items = orig_stack_items;
             it->key_len = orig_key_len;
             it->node = orig_node;
+            it->child_offset = orig_child_offset;
+            it->cpos = orig_cpos;
             return 1;
         }
 
@@ -2042,6 +2050,8 @@ int raxIteratorNextChildStep(raxIterator* it) {
     size_t orig_key_len = it->key_len;
     size_t orig_stack_items = it->stack.items;
     raxNode* orig_node = it->node;
+    size_t orig_child_offset = it->child_offset;
+    size_t orig_cpos = it->cpos;
 
     while(1) { // ascend/descend repeatedly until the next child key is found
         it->node = raxStackPop(&it->stack); // ascend
@@ -2052,6 +2062,8 @@ int raxIteratorNextChildStep(raxIterator* it) {
             it->stack.items = orig_stack_items;
             it->key_len = orig_key_len;
             it->node = orig_node;
+            it->child_offset = orig_child_offset;
+            it->cpos = orig_cpos;
             return 1;
         }
 
