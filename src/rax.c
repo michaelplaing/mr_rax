@@ -502,88 +502,6 @@ static inline size_t raxLowWalk(
     return i;
 }
 
-int raxIteratorPushChildOffset(raxIterator *it, uint8_t child_offset) {
-    if (it->cpos == it->cpos_max) {
-        uint8_t *old = (
-            (it->child_offset_stack == it->child_offset_stack_static) ?
-            NULL :
-            it->child_offset_stack
-        );
-
-        size_t new_max = it->cpos_max * 2;
-        it->child_offset_stack = rax_realloc(old, new_max);
-
-        if (it->child_offset_stack == NULL) {
-            it->child_offset_stack = (!old) ? it->child_offset_stack_static : old;
-            errno = ENOMEM;
-            return 0;
-        }
-
-        if (old == NULL) memcpy(it->child_offset_stack, it->child_offset_stack_static, it->cpos_max);
-        it->cpos_max = new_max;
-    }
-
-    it->child_offset_stack[it->cpos] = child_offset;
-    it->cpos++;
-    return 1;
-}
-
- uint8_t raxIteratorPopChildOffset(raxIterator *it) {
-    if (it->cpos == 0) return 0;
-    it->cpos--;
-    return it->child_offset_stack[it->cpos];
-}
-
-static inline size_t raxLowWalkSeek(unsigned char *s, size_t len, int *splitpos, raxIterator* it) {
-    // raxNode *h = it->rt->head;
-    raxNode *h = it->node;
-
-    size_t i = 0;
-    size_t j = 0;
-    size_t k = 0; // actual child offset
-    while(h->size && i < len) {
-        unsigned char *v = h->data;
-
-        if (h->iscompr) {
-            for (j = 0; j < h->size && i < len; j++, i++) {
-                if (v[j] != s[i]) break;
-            }
-
-            if (j != h->size) break;
-        }
-        else {
-            for (j = 0; j < h->size; j++) {
-                if (v[j] >= s[i]) break;
-            }
-
-            if (v[j] > s[i]) {
-                k = j;
-                j = h->size;
-                break;
-            }
-
-            if (j == h->size) {
-                k = j;
-                break;
-            }
-
-            i++;
-        }
-
-        if (h->iscompr) j = 0;
-        raxIteratorPushChildOffset(it, j);
-        raxStackPush(&it->stack,h);
-        raxNode **children = raxNodeFirstChildPtr(h);
-        memcpy(&h,children+j,sizeof(h));
-        j = 0;
-    }
-
-    it->node = h;
-    if (h->iscompr) *splitpos = j;
-    it->child_offset = k;
-    return i;
-}
-
 /* Insert the element 's' of size 'len', setting as auxiliary data
  * the pointer 'data'. If the element is already present, the associated
  * data is updated (only if 'overwrite' is set to 1), and 0 is returned,
@@ -1392,6 +1310,38 @@ void raxIteratorDelChars(raxIterator *it, size_t count) {
     it->key_len -= count;
 }
 
+int raxIteratorPushChildOffset(raxIterator *it, uint8_t child_offset) {
+    if (it->cpos == it->cpos_max) {
+        uint8_t *old = (
+            (it->child_offset_stack == it->child_offset_stack_static) ?
+            NULL :
+            it->child_offset_stack
+        );
+
+        size_t new_max = it->cpos_max * 2;
+        it->child_offset_stack = rax_realloc(old, new_max);
+
+        if (it->child_offset_stack == NULL) {
+            it->child_offset_stack = (!old) ? it->child_offset_stack_static : old;
+            errno = ENOMEM;
+            return 0;
+        }
+
+        if (old == NULL) memcpy(it->child_offset_stack, it->child_offset_stack_static, it->cpos_max);
+        it->cpos_max = new_max;
+    }
+
+    it->child_offset_stack[it->cpos] = child_offset;
+    it->cpos++;
+    return 1;
+}
+
+ uint8_t raxIteratorPopChildOffset(raxIterator *it) {
+    if (it->cpos == 0) return 0;
+    it->cpos--;
+    return it->child_offset_stack[it->cpos];
+}
+
 /* Do an iteration step towards the next element. At the end of the step the
  * iterator key will represent the (new) current key. If it is not possible
  * to step in the specified direction since there are no longer elements, the
@@ -1591,6 +1541,55 @@ int raxIteratorPrevStep(raxIterator *it, int noup) {
     }
 }
 
+static inline size_t raxLowWalkSeek(unsigned char *s, size_t len, int *splitpos, raxIterator* it) {
+    raxNode *h = it->node;
+
+    size_t i = 0;
+    size_t j = 0;
+    size_t k = 0; // actual child offset
+    while(h->size && i < len) {
+        unsigned char *v = h->data;
+
+        if (h->iscompr) {
+            for (j = 0; j < h->size && i < len; j++, i++) {
+                if (v[j] != s[i]) break;
+            }
+
+            if (j != h->size) break;
+        }
+        else {
+            for (j = 0; j < h->size; j++) {
+                if (v[j] >= s[i]) break;
+            }
+
+            if (v[j] > s[i]) {
+                k = j;
+                j = h->size;
+                break;
+            }
+
+            if (j == h->size) {
+                k = j;
+                break;
+            }
+
+            i++;
+        }
+
+        if (h->iscompr) j = 0;
+        raxIteratorPushChildOffset(it, j);
+        raxStackPush(&it->stack,h);
+        raxNode **children = raxNodeFirstChildPtr(h);
+        memcpy(&h,children+j,sizeof(h));
+        j = 0;
+    }
+
+    it->node = h;
+    if (h->iscompr) *splitpos = j;
+    it->child_offset = k;
+    return i;
+}
+
 /* Seek an iterator at the specified element.
  * Return 0 if the seek failed for syntax error or out of memory. Otherwise
  * 1 is returned. When 0 is returned for out of memory, errno is set to
@@ -1755,30 +1754,10 @@ int raxSeek(raxIterator *it, const char *op, unsigned char *ele, size_t len) {
     it->flags &= ~RAX_ITER_EOF;
     it->key_len = 0;
     it->node = it->rt->head;
-    it->start_node = it->rt->head;
     it->stop_node = it->rt->head;
     it->child_offset = 0;
     it->cpos = 0;
     return raxSeekEle(it, op, ele, len);
-}
-
-int raxSeekRelative(raxIterator *it, unsigned char *key, size_t key_len) {
-    it->flags |= RAX_ITER_JUST_SEEKED;
-    it->flags &= ~RAX_ITER_EOF;
-    if (it->key_len == 0) return raxSeek(it, "=", key, key_len);
-    size_t key_len_min = it->key_len < key_len ? it->key_len : key_len;
-    int i;
-    for (i = 0; i < key_len_min; i++) if (it->key[i] != key[i]) break; // find key match
-    size_t match_len = i;
-
-    while(it->key_len > match_len) { // ascend up to key match
-        it->node = raxStackPop(&it->stack);
-        int todel = it->node->iscompr ? it->node->size : 1;
-        raxIteratorDelChars(it, todel); // trim key
-        it->child_offset = raxIteratorPopChildOffset(it);
-    }
-
-    return raxSeekEle(it, "=", key + match_len, key_len - match_len); // seek from match
 }
 
 /* Go to the next element in the scope of the iterator 'it'.
@@ -2040,6 +2019,25 @@ unsigned long raxTouch(raxNode *n) {
 }
 
 // mr_rax additions by ml 20220401
+int raxSeekRelative(raxIterator *it, unsigned char *key, size_t key_len) {
+    it->flags |= RAX_ITER_JUST_SEEKED;
+    it->flags &= ~RAX_ITER_EOF;
+    if (it->key_len == 0) return raxSeek(it, "=", key, key_len);
+    size_t key_len_min = it->key_len < key_len ? it->key_len : key_len;
+    int i;
+    for (i = 0; i < key_len_min; i++) if (it->key[i] != key[i]) break; // find key match
+    size_t match_len = i;
+
+    while(it->key_len > match_len) { // ascend up to key match
+        it->node = raxStackPop(&it->stack);
+        int todel = it->node->iscompr ? it->node->size : 1;
+        raxIteratorDelChars(it, todel); // trim key
+        it->child_offset = raxIteratorPopChildOffset(it);
+    }
+
+    return raxSeekEle(it, "=", key + match_len, key_len - match_len); // seek from match
+}
+
 int raxIteratorNextChildStep(raxIterator* it) {
     size_t orig_key_len = it->key_len;
     size_t orig_stack_items = it->stack.items;

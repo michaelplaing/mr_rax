@@ -184,7 +184,6 @@ typedef struct raxIterator {
     size_t key_max;         /* Max key len the current key buffer can hold. */
     unsigned char key_static_string[RAX_ITER_STATIC_LEN];
     raxNode *node;          /* Current node. Only for unsafe iteration. */
-    raxNode *start_node; // mr_rax additions 20220504 ml: LowWalkSeek starting node
     raxNode *stop_node; // mr_rax additions 20220401 ml: terminate ascent
     raxStack stack;         /* Stack used for unsafe iteration. */
     size_t child_offset; // current child offset
