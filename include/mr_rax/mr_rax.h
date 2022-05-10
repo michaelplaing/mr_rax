@@ -15,6 +15,8 @@ static uint8_t client_mark = 0xff;
 // MQTT disallowed control char used to represent a zero-length token
 static char empty_tokenv[] = {0x1f, 0};
 
+int mr_next_vbi(raxIterator* piter, uint64_t* pu64);
+
 int mr_insert_subscription(rax* topic_tree, rax* client_tree, const char* subtopic, const uint64_t client);
 int mr_remove_subscription(rax* topic_tree, rax* client_tree, const char* subtopic, const uint64_t client);
 int mr_remove_client_subscriptions(rax* topic_tree, rax* client_tree, const uint64_t client);
