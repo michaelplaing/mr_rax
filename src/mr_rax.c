@@ -329,15 +329,15 @@ int mr_remove_client_subscriptions(rax* topic_tree, rax* client_tree, const uint
 }
 
 static int mr_get_topic_clients(raxIterator* iter, rax* srax, uint8_t* key, size_t key_len) {
-    printf("mr_get_topic_clients:: key: '%.*s'; key_len: %zu\n", (int)key_len, key, key_len);
+    // printf("mr_get_topic_clients:: key: '%.*s'; key_len: %zu\n", (int)key_len, key, key_len);
+
     // get regular subs
     key[key_len] = client_mark;
-    // raxSeekChildrenRelative(iter, key, key_len + 1);
-    // while(raxNextChild(iter)) raxTryInsert(srax, iter->key + iter->key_len - 8, 8, NULL, NULL);
     raxSeekSubtreeRelative(iter, key, key_len + 1);
 
     if (raxNext(iter)) { // subtree exists? Skip 1st key if it does
         while(raxNext(iter)) {
+            // printf("mr_get_topic_clients (regular):: iter->key: '%.*s'\n", (int)iter->key_len, iter->key);
             size_t clen = iter->key_len - (key_len + 1);
             raxTryInsert(srax, iter->key + key_len + 1, clen, NULL, NULL);
         }
@@ -352,20 +352,24 @@ static int mr_get_topic_clients(raxIterator* iter, rax* srax, uint8_t* key, size
         raxIterator* piter2 = raxIteratorDup(iter);
 
         while(raxNext(iter)) { // randomly pick one client per share
-            if (iter->key[iter->key_len - 1] != 0xff) continue; // only keys w/client marks
+            // printf("mr_get_topic_clients (shared):: iter->key: '%.*s'\n", (int)iter->key_len, iter->key);
+            if (!memchr(iter->key, 0xfe, iter->key_len) || iter->key[iter->key_len - 1] != 0xff) continue; // only keys w/client marks
+            // printf("mr_get_topic_clients (shared & selected):: iter->key: '%.*s'\n", (int)iter->key_len, iter->key);
             raxSeekSubtreeRelative(piter2, iter->key, iter->key_len);
 
             if (raxNext(piter2)) { // same - should succeed tho
                 size_t count = 0;
-                while (raxNext(piter2)) count++;
+                while (raxNext(piter2)) {
+                    // printf("mr_get_topic_clients (counted):: piter2->key: '%.*s'\n", (int)piter2->key_len, piter2->key);
+                    count++;
+                }
 
                 if (count) {
                     int choice = arc4random() % count;
                     raxSeekSubtreeRelative(piter2, iter->key, iter->key_len);
 
                     if (raxNext(piter2)) { // same
-                        for (int i = 0; i < (choice + 1); i++) raxNextChild(piter2);
-                        // raxTryInsert(srax, piter2->key + piter2->key_len - 8, 8, NULL, NULL);
+                        for (int i = 0; i < (choice + 1); i++) raxNext(piter2);
                         size_t clen = piter2->key_len - iter->key_len;
                         raxTryInsert(srax, piter2->key + iter->key_len, clen, NULL, NULL);
                     }

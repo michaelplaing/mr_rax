@@ -39,7 +39,9 @@ There is no separator between the tokens.
 
 Then for normal subscription clients:
 - ``0xff`` as the Client Mark (invalid UTF-8); and
-- 8 bytes of Client ID in big endian (network) order.
+- The VBI-encoded Client ID.
+
+Note: Variable Byte Integer (VBI) is an encoding of 7 bits per byte with a continuation bit in the high order spot. The bytes of the encoded integer are in big endian (network) order. This project uses 64 bit integer client IDs; hence a maximum of 10 bytes  are sufficient for encoding.
 
 And for shared subscription clients:
 - ``0xef`` as the Shared Mark (invalid UTF-8);
@@ -51,47 +53,47 @@ And for shared subscription clients:
 
 If the subscription topic is ``foo/bar`` and the Client ID is ``1``, then the normalized entry in the Topic Tree would be:
 
-``@foobar<0xff><0x0000000000000001>``
+``@foobar<0xff><0x01>``
 
 And maybe there is another client subscribed to that same topic:
 
-``@foobar<0xff><0x0000000000000002>``
+``@foobar<0xff><0x02>``
 
 A subscription with a 0-length token looks like this - topic ``foo/bar/``; Client ID ``3``:
 
-``@foobar<0x1f><0xff><0x0000000000000003>``
+``@foobar<0x1f><0xff><0x03>``
 
 A shared subscription is like this - topic ``$share/baz/foo/bar``; Client ID ``4``:
 
-``@foobar<0xef>baz<0xff><0x0000000000000004>``
+``@foobar<0xef>baz<0xff><0x04>``
 
 ... and it's more interesting if there is more than one client sharing the same subscription:
 
-``@foobar<0xef>baz<0xff><0x0000000000000005>``
+``@foobar<0xef>baz<0xff><0x05>``
 
 Shared subscriptions can form a complex subhierarchy, e.g. - topic ``$share/bazzle/foo/bar``; Client ID ``6``:
 
-``@foobar<0xef>bazzle<0xff><0x0000000000000006>``
+``@foobar<0xef>bazzle<0xff><0x06>``
 
 A plus wildcard can replace any token, e.g. topic ``+/bar``; Client ID ``7``:
 
-``@+bar<0xff><0x0000000000000007>``
+``@+bar<0xff><0x07>``
 
 A hash wildcard can be the last token at any level, e.g. topic ``foo/#``; Client ID ``8``:
 
-``@foo#<0xff><0x0000000000000008>``
+``@foo#<0xff><0x08>``
 
 Of course a client can have any number of subscriptions and vice versa, e.g. topic ``foo/#``; Client ID ``1``:
 
-``@foo#<0xff><0x0000000000000001>``
+``@foo#<0xff><0x01>``
 
 And subscribe to a ``$SYS`` topic as well, e.g. topic ``$SYS/foo/#``; Client ID ``1``:
 
-``$$SYSfoo#<0xff><0x0000000000000001>``
+``$$SYSfoo#<0xff><0x01>``
 
 Valid UTF-8 is fully supported, e.g. topic ``酒/吧``; Client ID ``8``:
 
-``@酒吧<0xff><0x0000000000000008>``
+``@酒吧<0xff><0x08>``
 
 Note: ``/`` is a valid token separator for all UTF-8 character strings as it cannot be confused with any valid adjacent UTF-8 byte.
 
@@ -142,46 +144,46 @@ Each token subtree in a normalized topic is stored as a key. The client mark sub
       ↑
 @foobar<0xff>
            ↑
-@foobar<0xff><0x0000000000000001>
-                               ↑
+@foobar<0xff><0x01>
+                 ↑
 ```
 Due to prefix compression, storage for the 5 keys would look like:
 ```
-@foobar<0xff><0x0000000000000001>
-↑  ↑  ↑    ↑                   ↑
+@foobar<0xff><0x01>
+↑  ↑  ↑    ↑     ↑
 ```
 
-When ``@foobar<0xff><0x0000000000000002>`` is also inserted, we get:
+When ``@foobar<0xff><0x02>`` is also inserted, we get:
 ```
-@foobar<0xff><0x00000000000000>
-↑  ↑  ↑    ↑                 \
-                               |<0x01>
-                               \    ↑
-                                <0x02>
-                                    ↑
+@foobar<0xff>
+↑  ↑  ↑    ↑\
+            |<0x01>
+            \    ↑
+             <0x02>
+                 ↑
 ```
 
 The additions to Rax include ``raxShowHex()``. When the 11 subscriptions above are applied to the Topic Tree they result in the following ASCII art of the Rax internal structures, illustrating prefix compression, node compression and adaptive node sizes:
 ```
 [$@]
- `-($) "$SYS" -> "foo" -> [#] -> [0xff] -> "0x0000000000000001" -> []
+ `-($) "$SYS" -> "foo" -> [#] -> [0xff] -> [0x01] -> []
  `-(@) [0x2b66e9]
-        `-(+) "bar" -> [0xff] -> "0x0000000000000007" -> []
+        `-(+) "bar" -> [0xff] -> [0x07] -> []
         `-(f) "oo" -> [#b]
-                       `-(#) [0xff] -> "0x00000000000000" -> [0x0108]
-                                                              `-(.) []
-                                                              `-(.) []
+                       `-(#) [0xff] -> [0x0108]
+                                        `-(.) []
+                                        `-(.) []
                        `-(b) "ar" -> [0x1ffeff]
-                                      `-(.) [0xff] -> "0x0000000000000003" -> []
+                                      `-(.) [0xff] -> [0x03] -> []
                                       `-(.) "baz" -> [0x7aff]
-                                                      `-(z) "le" -> [0xff] -> "0x0000000000000006" -> []
-                                                      `-(.) "0x00000000000000" -> [0x0405]
-                                                                                   `-(.) []
-                                                                                   `-(.) []
-                                      `-(.) "0x00000000000000" -> [0x0102]
-                                                                   `-(.) []
-                                                                   `-(.) []
-        `-(.) "0x8592" -> "0xe590a7" -> [0xff] -> "0x0000000000000008" -> []
+                                                      `-(z) "le" -> [0xff] -> [0x06] -> []
+                                                      `-(.) [0x0405]
+                                                             `-(.) []
+                                                             `-(.) []
+                                      `-(.) [0x0102]
+                                             `-(.) []
+                                             `-(.) []
+        `-(.) "0x8592" -> "0xe590a7" -> [0xff] -> [0x08] -> []
 ```
 A full explanation of the notation above is in the Rax README and ``rax.c``; a tricky part is that edge bytes pointing to nodes are not stored in the nodes themselves.
 

@@ -145,24 +145,17 @@ int topic_fun(void) {
 
     rax* client_set = raxNew();
     mr_get_subscribed_clients(tc_tree, client_set, pubtopic);
+
+    // raxShowHex(client_set);
+
     raxIterator siter;
     raxStart(&siter, client_set);
     raxSeek(&siter, "^", NULL, 0);
-
-    // while(raxNext(&siter)) {
-    //     uint64_t client = 0;
-    //     for (int i = 0; i < 8; i++) client += siter.key[i] << ((8 - i - 1) * 8);
-    //     printf(" %llu", client);
-    // }
-
-    uint64_t client = 0;
-    while(mr_next_vbi(&siter, &client)) printf("siter.key: %0x; client: %llu\n", siter.key[0], client);
-
-    // puts("");
-
-    raxShowHex(client_set);
-
+    uint64_t client;
+    while(mr_next_vbi(&siter, &client)) printf("%llu ", client);
+    puts("");
     raxStop(&siter);
+
     raxFree(client_set);
 
     // char topic[MAX_TOPIC_LEN];
