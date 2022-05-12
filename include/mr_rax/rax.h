@@ -229,10 +229,10 @@ int raxSeekChildrenRelative(raxIterator* it, uint8_t* key, size_t len);
 int raxSeekSubtree(raxIterator* it, uint8_t* key, size_t len);
 int raxSeekSubtreeRelative(raxIterator* it, uint8_t* key, size_t len);
 void raxShowHex(rax* rax);
-int raxFreeSubtreeWithCallback(rax* rax, uint8_t* key, size_t len, void (*free_callback)(void*));
-int raxFreeSubtree(rax* rax, uint8_t* key, size_t len);
+int raxRemoveSubtree(rax* tree, uint8_t* key, size_t len);
 int raxSeekRelative(raxIterator *it, unsigned char *key, size_t key_len);
 void *raxFindRelative(raxIterator* iter, uint8_t* key, size_t key_len);
 raxIterator* raxIteratorDup(raxIterator* piter);
+int raxIsLeaf(rax *rax, unsigned char *s, size_t len);
 
 #endif

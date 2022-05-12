@@ -1221,10 +1221,6 @@ int raxRemove(rax *rax, unsigned char *s, size_t len, void **old) {
     return 1;
 }
 
-// int raxRemove(rax *rax, unsigned char *s, size_t len, void **old) {
-//     return raxRemoveGeneric(rax, s, len, old, NULL);
-// }
-
 /* This is the core of raxFree(): performs a depth-first scan of the
  * tree and releases all the nodes found. */
 void raxRecursiveFree(rax *rax, raxNode *n, void (*free_callback)(void*)) {
@@ -1407,6 +1403,7 @@ int raxIteratorNextStep(raxIterator *it, int noup) {
 
                 /* Already on head? Can't go up, iteration finished. */
                 if (!noup && it->node == it->stop_node) {
+                // if (!noup && (it->node == it->stop_node || it->node == it->rt->head)) {
                     it->flags |= RAX_ITER_EOF;
                     it->stack.items = orig_stack_items;
                     it->key_len = orig_key_len;
@@ -2140,7 +2137,8 @@ static int raxSeekSubtreeGeneric(raxIterator* it, uint8_t* key, size_t key_len, 
         if (!raxSeek(it, "=", key, key_len)) return 0;
     }
 
-    if (key_len) it->stop_node = raxStackPeek(&it->stack); // terminate on ascent above starting node
+    // if (key_len) it->stop_node = raxStackPeek(&it->stack); // terminate on ascent above starting node
+    if (key_len) it->stop_node = it->node; // terminate on return to starting node
     return 1;
 }
 
@@ -2256,24 +2254,27 @@ void raxShowHex(rax* rax) {
     putchar('\n');
 }
 
-int raxFreeSubtreeWithCallback(rax* rax, uint8_t* key, size_t len, void (*free_callback)(void*)) {
+int raxRemoveSubtree(rax* tree, uint8_t* key, size_t len) {
     raxIterator it;
-    raxStart(&it, rax);
-    if(!raxSeek(&it, "=", key, len)) return 0;
-    int children = it.node->iscompr ? 1 : it.node->size;
-    raxNode** cp = raxNodeFirstChildPtr(it.node);
-    for (int i = 0; i < children; i++, cp++) raxRecursiveFree(rax, *cp, free_callback);
-    it.node->size = 0; // trigger cleanup during removal
-    void* value;
-    raxRemove(rax, key, len, &value);
-    if (free_callback && value) free_callback(value);
+    raxStart(&it, tree);
+
+    rax* del_tree = raxNew();
+    raxIterator it2;
+    raxStart(&it2, del_tree);
+
+    if (!raxSeekSubtree(&it, key, len)) return 0;
+    while(raxNext(&it)) raxInsert(del_tree, it.key, it.key_len, NULL, NULL);
+    // raxShowHex(del_tree);
+
+    if (!raxSeekSubtree(&it2, key, len)) return 0;
+    while(raxNext(&it2)) {raxRemove(tree, it2.key, it2.key_len, NULL); raxShowHex(tree);}
+
+    raxStop(&it2);
     raxStop(&it);
+    raxFree(del_tree);
     return 1;
 }
 
-int raxFreeSubtree(rax* rax, uint8_t* key, size_t len) {
-    return raxFreeSubtreeWithCallback(rax, key, len, NULL);
-}
 
 void* raxFindRelative(raxIterator* iter, uint8_t* key, size_t key_len) {
     if (!raxSeekRelative(iter, key, key_len)) return NULL;
@@ -2337,4 +2338,14 @@ raxIterator* raxIteratorDup(raxIterator* piter) {
     }
 
     return piterdup;
+}
+
+int raxIsLeaf(rax *rax, unsigned char *s, size_t len) {
+    raxNode *h;
+
+    debugf("### Lookup: %.*s\n", (int)len, s);
+    int splitpos = 0;
+    size_t i = raxLowWalk(rax,s,len,&h,NULL,&splitpos, NULL);
+    if (i != len || (h->iscompr && splitpos != 0) || !h->iskey) return 0; // not found
+    return h->size == 0;
 }

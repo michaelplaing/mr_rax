@@ -111,6 +111,8 @@ Some additions and modifications have been made to Rax including the following a
 
 - ``raxSeekSubtree()``: Seek a key in order to get it and its subtree keys using ``raxNext()``.
 
+- ``raxRemoveSubtree()``: Remove all the keys is a subtree.
+
 To further speed up finds and traverses in a Rax tree, especially when handling related keys, the following additions make
 use of state to proceed in their tasks differentially from the previous state.
 
@@ -125,12 +127,6 @@ use of state to proceed in their tasks differentially from the previous state.
 For easier visualization of binary data, e.g. Client IDs and timestamps:
 
 - ``raxShowHex()``
-
-These functions remove all the keys and nodes in a subtree.
-
-- ``raxFreeSubtree()``
-
-- ``raxFreeSubtreeWithCallback()``
 
 ### Overlaying the Topic Tree on Rax
 

@@ -98,9 +98,9 @@ int topic_fun(void) {
     // char pubtopic[] = "s";
     char pubtopic[] = "foo/bar";
 
-    char subtopic2[] = "$SYS/foo/#";int client2 = 1;
+    char subtopic2[] = "$SYS/foo/#"; int client2 = 1;
     // mr_remove_subscription(tc_tree, client_tree, subtopic2, client2);
-    char subtopic3[] = "foo/#";int client3 = 1;
+    // char subtopic3[] = "foo/#";int client3 = 1;
     // mr_remove_subscription(tc_tree, client_tree, subtopic3, client3);
     // char subtopic4[] = "foo/bar";int client4 = 1;
     // mr_remove_subscription(tc_tree, client_tree, subtopic4, client4);
@@ -109,8 +109,9 @@ int topic_fun(void) {
     // mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic, 1);
     // mr_remove_client_subscriptions(tc_tree, client_tree, client2);
 
-    // mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 2);
-    // mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic, 2);
+    mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 2);
+    // raxShowHex(client_tree);
+    // mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 3);
     // uint8_t alias;
     // int rc = mr_get_alias_by_topic(client_tree, 1, true, pubtopic, &alias);
     // printf("mr_get_alias_by_topic:: rc: %d; alias: %u\n", rc, alias);
@@ -120,17 +121,18 @@ int topic_fun(void) {
     //mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 8);
     //mr_upsert_client_topic_alias(client_tree, 1, false, pubtopic, 8);
     // mr_upsert_client_topic_alias(client_tree, 1, true, pubtopic2, 9);
-    //uint8_t alias;
-    //int rc = mr_get_alias_by_topic(client_tree, 1, false, pubtopic, &alias);
-    //printf("mr_get_alias_by_topic:: rc: %d; alias: %u\n", rc, alias);
+    // uint8_t alias;
+    // int rc;
+    // int rc = mr_get_alias_by_topic(client_tree, 1, true, pubtopic2, &alias);
+    // printf("mr_get_alias_by_topic:: rc: %d; alias: %u\n", rc, alias);
     // char aliastopic[MAX_TOPIC_LEN];
-    // rc = mr_get_topic_by_alias(client_tree, 1, false, 3, aliastopic);
-    // printf("mr_get_topic_by_alias:: rc: %d; aliastopic: %s\n", rc, aliastopic);
+    // rc = mr_get_topic_by_alias(client_tree, 1, true, 2, aliastopic);
+    //printf("mr_get_topic_by_alias:: rc: %d; aliastopic: %s\n", rc, aliastopic);
     //mr_remove_client_topic_aliases(client_tree, 1);
-    // mr_remove_client_data(tc_tree, client_tree, 1);
+    mr_remove_client_data(tc_tree, client_tree, 1);
 
     raxShowHex(tc_tree);
-    //raxShowHex(client_tree);
+    raxShowHex(client_tree);
 
     // printf("raxShowHex\n");
     // raxIterator titer;
@@ -174,6 +176,32 @@ int topic_fun(void) {
 
     raxFree(client_tree);
     raxFree(tc_tree);
+
+// scratch area
+
+    // rax* test_tree = raxNew();
+    // raxIterator it;
+    // raxStart(&it, test_tree);
+
+    // raxInsert(test_tree, (uint8_t*)"1", 1, NULL, NULL);
+    // raxInsert(test_tree, (uint8_t*)"11", 2, NULL, NULL);
+    // raxInsert(test_tree, (uint8_t*)"111", 3, NULL, NULL);
+    // raxInsert(test_tree, (uint8_t*)"112", 3, NULL, NULL);
+    // raxInsert(test_tree, (uint8_t*)"2", 1, NULL, NULL);
+    // raxInsert(test_tree, (uint8_t*)"22", 2, NULL, NULL);
+    // raxInsert(test_tree, (uint8_t*)"3", 1, NULL, NULL);
+    // raxInsert(test_tree, (uint8_t*)"33", 2, NULL, NULL);
+
+    // raxShowHex(test_tree);
+
+    // raxSeekSubtree(&it, (uint8_t*)"1", 1);
+    // while (raxNext(&it)) printf("it.key: %.*s; it.key_len: %zu\n", (int)it.key_len, it.key, it.key_len);
+
+    // raxStop(&it);
+    // raxFree(test_tree);
+
+// end scratch
+
     return 0;
 }
 
