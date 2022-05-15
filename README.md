@@ -43,7 +43,7 @@ Then for normal subscription clients:
 - ``0xff`` as the Client Mark (invalid UTF-8); and
 - The VBI-encoded Client ID.
 
-Note: Variable Byte Integer (VBI) is an encoding of 7 bits per byte with a continuation bit in the high order spot. The bytes of the encoded integer are in big endian (network) order. This project uses 64 bit integer client IDs; hence a maximum of 10 bytes  are sufficient for encoding.
+Note: Variable Byte Integer (VBI) is an encoding of 7 bits per byte with a continuation bit in the high order spot. For this project, the bytes of the encoded integer are in big endian (network) order to maximize prefix compression – normally VBI is little endian. Also this project uses 64 bit integer Client IDs so 10 bytes are sufficient for any Client ID encoding.
 
 And for shared subscription clients:
 - ``0xef`` as the Shared Mark (invalid UTF-8);
@@ -233,7 +233,7 @@ Phase 2 of the strategy, gathering Client IDs for a search predicate, proceeds i
 
 Running ``mr_get_subscribed_clients()`` using Publish Topic ``foo/bar`` against our Topic Tree above results in Client IDs: `` 1 128 2 4 6 7 8``. Repeatedly running it will result in `` 1 128 2 5 6 7 8`` about half the time – this is due to the share ``baz`` being shared by clients ``4`` and ``5`` whereas share ``bazzle`` has a single client and the other subscriptions are normal.
 
-Note that Client ID ``1`` only appears once although it is present in 2 matching subscriptions: ``foo/bar`` and ``foo/#``; also Client ID ``3`` is not present since Subscribe Topic ``foo/bar/`` does not match the Publish Topic. Also the order of results is lexicographic rather than numeric, since that is the order of the underlying result tree of Client IDs is lexicographic as are all Rax trees.
+Note that Client ID ``1`` only appears once although it is present in 2 matching subscriptions: ``foo/bar`` and ``foo/#``; also Client ID ``3`` is not present since Subscribe Topic ``foo/bar/`` does not match the Publish Topic. Also the order of results is lexicographic rather than numeric because the order of the underlying result tree of Client IDs is lexicographic as are all Rax trees.
 
 The combination of compression, which shortens the key path, with relative key searches yields an average search key depth descending toward 1. Although there can be many searches in the strategy, performance is near linear, dependent upon the number of tokens in the Publish Topic and the number of ``+`` wildcards found in the Topic Tree, which have a multiplicative effect.
 
