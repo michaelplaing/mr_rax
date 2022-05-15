@@ -2,13 +2,13 @@
 
 The **mr_rax** public functions are:
 
-- ``mr_insert_subscription()``: Insert an MQTT subscription topic (with optional wildcards) and a Client ID.
+- ``mr_insert_subscription()``: Insert an MQTT Subscribe Topic (with optional wildcards) and a Client ID.
 
-- ``mr_remove_subscription()``: Remove an MQTT subscription topic for a Client ID trimming the tree as needed.
+- ``mr_remove_subscription()``: Remove an MQTT Subscribe Topic for a Client ID trimming the tree as needed.
 
 - ``mr_remove_client_subscriptions()``: Remove all subscriptions for a client.
 
-- ``mr_get_subscribed_clients()``: For a published topic return the dedup'd sorted set of Client IDs from all matching subscriptions. MQTT shared subscriptions are fully supported.
+- ``mr_get_subscribed_clients()``: For a publish topic return the dedup'd sorted set of Client IDs from all matching subscriptions. MQTT shared subscriptions are fully supported.
 
 - ``mr_upsert_client_topic_alias()``: Insert or update a topic/alias pair for a client.
 
@@ -19,6 +19,8 @@ The **mr_rax** public functions are:
 - ``mr_get_topic_by_alias()``: Get the topic for an alias and client, if any.
 
 - ``mr_remove_client_data()``: Remove all subscriptions and other data for a client.
+
+- ``mr_next_client()``: Return the next Client ID while iterating a result tree.
 
 This project is set up for use as one of the CMake subprojects in a comprehensive MQTT project(s).
 
@@ -47,11 +49,11 @@ And for shared subscription clients:
 - ``0xef`` as the Shared Mark (invalid UTF-8);
 - the share name;
 - ``0xff`` as the Client Mark; and
-- 8 bytes of Client ID in big endian order.
+- The VBI-encoded Client ID.
 
 ### Subscription examples:
 
-If the subscription topic is ``foo/bar`` and the Client ID is ``1``, then the normalized entry in the Topic Tree would be:
+If the Subscribe Topic is ``foo/bar`` and the Client ID is ``1``, then the normalized entry in the Topic Tree would be:
 
 ``@foobar<0xff><0x01>``
 
@@ -87,6 +89,10 @@ Of course a client can have any number of subscriptions and vice versa, e.g. top
 
 ``@foo#<0xff><0x01>``
 
+Client IDs can range up to 2**64, encoding up to 10 bytes. This one encodes to 2 bytes: topic ``foo/#``; Client ID ``128``:
+
+``@foo#<0xff><0x0180>``
+
 And subscribe to a ``$SYS`` topic as well, e.g. topic ``$SYS/foo/#``; Client ID ``1``:
 
 ``$$SYSfoo#<0xff><0x01>``
@@ -103,30 +109,32 @@ Rax is a binary character based adaptive radix prefix tree. This means that comm
 
 There is much more information in the Rax README and ``rax.c``.
 
-Some additions and modifications have been made to Rax including the following added functions needed by the ``mr_*()`` functions above. There are enhancements to avoid repetitive scanning of node data for the next child node index, which are particularly important for scanning wide spans of binary Client IDs.
+Some additions and modifications have been made to Rax including the following added functions needed by the ``mr_*()`` functions above.
 
-- ``raxSeekChildren()``: Seek a key in order to get its immediate child keys.
-
-- ``raxNextChild()``: Return the next immediate child key of the key sought above.
+There are substantial enhancements to avoid repetitive scanning of node data for the next child node offset. These are particularly important when scanning wide spans of binary Client IDs during iteration.
 
 - ``raxSeekSubtree()``: Seek a key in order to get it and its subtree keys using ``raxNext()``.
 
-- ``raxRemoveSubtree()``: Remove all the keys is a subtree.
+- ``raxRemoveSubtree()``: Remove all the keys in a subtree.
 
 To further speed up finds and traverses in a Rax tree, especially when handling related keys, the following additions make
-use of state to proceed in their tasks differentially from the previous state.
+use of state to proceed in their tasks differentially from the previous state. This is particularly important when executing a series of related searches as described in the subscription matching algorithm further below.
 
 - ``raxFindRelative()``: Find the value of a key relative to the previous key.
 
 - ``raxSeekRelative()``: Seek a key relative to the previous key.
 
-- ``raxSeekChildrenRelative()``: Seek a key relative to the previous key in order to get its immediate child keys.
-
 - ``raxSeekSubtreeRelative()``: Seek a key relative to the previous key in order to get it and its subtree keys using ``raxNext()``.
 
-For easier visualization of binary data, e.g. Client IDs and timestamps:
+There are some utility functions as well:
 
-- ``raxShowHex()``
+- ``raxIteratorDup()``: Make a deep copy of an iterator containing state.
+
+- ``raxIsLeaf()``: Identify whether a node is a leaf, i.e. has no children.
+
+For easier visualization of binary data, e.g. Client IDs and timestamps, and for brackets around keys:
+
+- ``raxShowHexKey()``
 
 ### Overlaying the Topic Tree on Rax
 
@@ -159,43 +167,43 @@ When ``@foobar<0xff><0x02>`` is also inserted, we get:
                  ↑
 ```
 
-The additions to Rax include ``raxShowHex()``. When the 11 subscriptions above are applied to the Topic Tree they result in the following ASCII art of the Rax internal structures, illustrating prefix compression, node compression and adaptive node sizes:
+The additions to Rax include ``raxShowHexKey()``. When the 12 subscriptions above are applied to the Topic Tree they result in the following ASCII art of the Rax internal structures, illustrating prefix compression, node compression, adaptive node sizes and whether a node is a ``{<key>}``. A tricky part is that the edge byte pointing to a node is not stored in the node itself but in the parent node.
 ```
 [$@]
- `-($) "$SYS" -> "foo" -> [#] -> [0xff] -> [0x01] -> []
- `-(@) [0x2b66e9]
-        `-(+) "bar" -> [0xff] -> [0x07] -> []
-        `-(f) "oo" -> [#b]
-                       `-(#) [0xff] -> [0x0108]
-                                        `-(.) []
-                                        `-(.) []
-                       `-(b) "ar" -> [0x1ffeff]
-                                      `-(.) [0xff] -> [0x03] -> []
-                                      `-(.) "baz" -> [0x7aff]
-                                                      `-(z) "le" -> [0xff] -> [0x06] -> []
-                                                      `-(.) [0x0405]
-                                                             `-(.) []
-                                                             `-(.) []
-                                      `-(.) [0x0102]
-                                             `-(.) []
-                                             `-(.) []
-        `-(.) "0x8592" -> "0xe590a7" -> [0xff] -> [0x08] -> []
+ `-($) {"$SYS"} -> {"foo"} -> {[#]} -> {[0xff]} -> {[0x01]} -> {[]}
+ `-(@) {[0x2b66e9]}
+        `-(+) {"bar"} -> {[0xff]} -> {[0x07]} -> {[]}
+        `-(f)  "oo"  -> {[#b]}
+                         `-(#) {[0xff]} -> {[0x0108]}
+                                            `-(.) {[0x80]} -> {[]}
+                                            `-(.) {[]}
+                         `-(b)  "ar"  -> {[0x1ffeff]}
+                                          `-(.) {[0xff]} -> {[0x03]} -> {[]}
+                                          `-(.) {"baz"} -> {[0x7aff]}
+                                                            `-(z)  "le"  -> {[0xff]} -> {[0x06]} -> {[]}
+                                                            `-(.) {[0x0405]}
+                                                                   `-(.) {[]}
+                                                                   `-(.) {[]}
+                                          `-(.) {[0x0102]}
+                                                 `-(.) {[]}
+                                                 `-(.) {[]}
+        `-(.)  "0x8592"  -> {"0xe590a7"} -> {[0xff]} -> {[0x08]} -> {[]}
 ```
-A full explanation of the notation above is in the Rax README and ``rax.c``; a tricky part is that edge bytes pointing to nodes are not stored in the nodes themselves.
+More explanation of the structure is in the Rax README and ``rax.c``.
 
 ### The Topic Tree search strategy
 
-This is the strategy used by ``mr_get_subscribed_clients()`` to extract a dedup'd list of subscribed Client IDs when provided with a valid publish topic (no wildcards).
+This is the strategy used by ``mr_get_subscribed_clients()`` to extract a dedup'd list of subscribed Client IDs when provided with a valid Publish Topic (no wildcards).
 
 The strategy is repeatedly executed in 2 phases until done:
 
-1) a subscribe topic (may have wildcards) is found in the Topic Tree that matches the publish topic; then
+1) a Subscribe Topic (may have wildcards) is found in the Topic Tree that matches the Publish Topic; then
 
-2) the normal and/or shared subscription Client IDs associated with the subscribe topic, if there are any, are found and added to the unique set of Client IDs.
+2) the normal and/or shared subscription Client IDs associated with the Subscribe Topic, if there are any, are found and added to the unique set of Client IDs.
 
 This is repeated until all possible matches have been found and the Client IDs noted.
 
-For phase 1, the internally formatted publish topic is tokenized using '/' as the separator. For example, the external publish topic ``foo/bar`` is tokenized as: ``@``; ``foo``; ``bar``.
+For phase 1, the internally formatted Publish Topic is tokenized using '/' as the separator. For example, the external Publish Topic ``foo/bar`` is tokenized as: ``@``; ``foo``; ``bar``.
 
 Then 3 searches are performed in order at each level of the Topic Tree except for the last which has 1 search. For the example the levels are: ``@``; ``@foo``, ``@foobar`` and the search predicates are: ``@#``, ``@+``, ``@foo``; ``@foo#``, ``@foo+``, ``@foobar``; ``@foobar#``. The last search is necessary because ``#`` matches the level above.
 
@@ -223,44 +231,45 @@ Phase 2 of the strategy, gathering Client IDs for a search predicate, proceeds i
 
 2) Append the Shared Mark (``0xef``) to the current key and search for it. If found iterate over the share name children, e.g. ``baz``, and, for each share name, append the Client Mark, get its Client ID children, then select one at random and insert it into the result set.
 
-Running ``mr_get_subscribed_clients()`` using publish topic ``foo/bar`` against our Topic Tree above results in Client IDs: `` 1 2 4 6 7 8``. Repeatedly running it will result in `` 1 2 5 6 7 8`` about half the time – this is due to the share ``baz`` being shared by clients ``4`` and ``5`` whereas share ``bazzle`` has a single client and the other subscriptions are normal.
+Running ``mr_get_subscribed_clients()`` using Publish Topic ``foo/bar`` against our Topic Tree above results in Client IDs: `` 1 128 2 4 6 7 8``. Repeatedly running it will result in `` 1 128 2 5 6 7 8`` about half the time – this is due to the share ``baz`` being shared by clients ``4`` and ``5`` whereas share ``bazzle`` has a single client and the other subscriptions are normal.
 
-Note also that Client ID ``1`` only appears once although it is present in 2 matching subscriptions: ``foo/bar`` and ``foo/#``; also Client ID ``3`` is not present since subscription topic ``foo/bar/`` does not match the publish topic.
+Note that Client ID ``1`` only appears once although it is present in 2 matching subscriptions: ``foo/bar`` and ``foo/#``; also Client ID ``3`` is not present since Subscribe Topic ``foo/bar/`` does not match the Publish Topic. Also the order of results is lexicographic rather than numeric, since that is the order of the underlying result tree of Client IDs is lexicographic as are all Rax trees.
 
-The combination of compression, which shortens the key path, with relative key searches yields an average search key depth descending toward 1. Hence, although there are many searches in the strategy, performance is near linear, dependent upon the number of tokens in the publish topic and the number of ``+`` wildcards found in the Topic Tree, which have a multiplicative effect.
+The combination of compression, which shortens the key path, with relative key searches yields an average search key depth descending toward 1. Although there can be many searches in the strategy, performance is near linear, dependent upon the number of tokens in the Publish Topic and the number of ``+`` wildcards found in the Topic Tree, which have a multiplicative effect.
 
 ### The Client tree
 
 This tree contains a subscriptions inversion for each client, topic aliases for clients, and will contain other client-based information.
 
-The client tree uses the external format for both subscribe and publish topics.
+The client tree uses the external format for both Subscribe and Publish Topics.
 
 Topic aliases are in 2 distinct sets: ones set by the client and those set by the server. Hence there are 2 pairs (handling inversion) of synchronized subtrees for each client, providing alias-by-topic and topic-by-alias for client and server aliases.
 
-Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHex()`` yields the following depiction of our 8 clients, their 11 subscriptions and the 2 aliases in the client tree:
+Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHexKey()`` yields the following depiction of our 9 clients, their 12 subscriptions and the 2 aliases in the client tree:
 
 ```
-"0x00000000000000" -> [0x0102030405060708]
-        `-(.) [as]
-               `-(a) "liases" -> [cs]
-                                  `-(c) "lient" -> [at]
-                                                    `-(a) "bt" -> "baz/bam" -> [0x08] -> []
-                                                    `-(t) "ba" -> [0x08] -> "baz/bam" -> []
-                                  `-(s) "erver" -> [at]
-                                                    `-(a) "bt" -> "foo/bar" -> [0x08] -> []
-                                                    `-(t) "ba" -> [0x08] -> "foo/bar" -> []
-               `-(s) "ubs" -> [$f]
-                               `-($) "SYS/foo/#" -> []
-                               `-(f) "oo/" -> [#b]
-                                               `-(#) []
-                                               `-(b) "ar" -> []
-        `-(.) "subs" -> "foo/bar" -> []
-        `-(.) "subs" -> "foo/bar/" -> []
-        `-(.) "subs" -> "$share/baz/foo/bar" -> []
-        `-(.) "subs" -> "$share/baz/foo/bar" -> []
-        `-(.) "subs" -> "$share/bazzle/foo/bar" -> []
-        `-(.) "subs" -> "+/bar" -> []
-        `-(.) "subs" -> [0x66e9]
-                         `-(f) "oo/#" -> []
-                         `-(.) "0x85922fe590a7" -> []
+[0x0102030405060708]
+ `-(.) {[0x617380]}
+        `-(a)  "liases"  -> {[cs]}
+                             `-(c)  "lient"  -> {[at]}
+                                                 `-(a)  "bt"  -> {"baz/bam"} -> {[0x08]} -> {[]}
+                                                 `-(t)  "ba"  -> {[0x08]} -> {"baz/bam"} -> {[]}
+                             `-(s)  "erver"  -> {[at]}
+                                                 `-(a)  "bt"  -> {"foo/bar"} -> {[0x08]} -> {[]}
+                                                 `-(t)  "ba"  -> {[0x08]} -> {"foo/bar"} -> {[]}
+        `-(s)  "ubs"  -> {[$f]}
+                          `-($)  "SYS/foo/#"  -> {[]}
+                          `-(f)  "oo/"  ->  [#b]
+                                            `-(#) {[]}
+                                            `-(b)  "ar"  -> {[]}
+        `-(.) {"subs"} -> {"foo/#"} -> {[]}
+ `-(.) {"subs"} -> {"foo/bar"} -> {[]}
+ `-(.) {"subs"} -> {"foo/bar/"} -> {[]}
+ `-(.) {"subs"} -> {"$share/baz/foo/bar"} -> {[]}
+ `-(.) {"subs"} -> {"$share/baz/foo/bar"} -> {[]}
+ `-(.) {"subs"} -> {"$share/bazzle/foo/bar"} -> {[]}
+ `-(.) {"subs"} -> {"+/bar"} -> {[]}
+ `-(.) {"subs"} -> {[0x66e9]}
+                    `-(f)  "oo/#"  -> {[]}
+                    `-(.)  "0x85922fe590a7"  -> {[]}
 ```

@@ -2103,29 +2103,29 @@ int raxIteratorNextChildStep(raxIterator* it) {
     }
 }
 
-int raxNextChild(raxIterator* it) {
-    if (it->flags & RAX_ITER_EOF) {
-        errno = 0;
-        return 0;
-    }
+// int raxNextChild(raxIterator* it) {
+//     if (it->flags & RAX_ITER_EOF) {
+//         errno = 0;
+//         return 0;
+//     }
 
-    if (it->flags & RAX_ITER_JUST_SEEKED) {
-        it->flags &= ~RAX_ITER_JUST_SEEKED;
-        return 1; // return the seeked key which is the 1st child
-    }
+//     if (it->flags & RAX_ITER_JUST_SEEKED) {
+//         it->flags &= ~RAX_ITER_JUST_SEEKED;
+//         return 1; // return the seeked key which is the 1st child
+//     }
 
-    if (!raxIteratorNextChildStep(it)) {
-        errno = ENOMEM;
-        return 0;
-    }
+//     if (!raxIteratorNextChildStep(it)) {
+//         errno = ENOMEM;
+//         return 0;
+//     }
 
-    if (it->flags & RAX_ITER_EOF) {
-        errno = 0;
-        return 0;
-    }
+//     if (it->flags & RAX_ITER_EOF) {
+//         errno = 0;
+//         return 0;
+//     }
 
-    return 1;
-}
+//     return 1;
+// }
 
 static int raxSeekSubtreeGeneric(raxIterator* it, uint8_t* key, size_t key_len, bool isrelative) {
     debugf("raxSeekSubtree:: key: '%.*s'; key_len: %zu\n", (int)len, key, key_len);
@@ -2150,55 +2150,136 @@ int raxSeekSubtreeRelative(raxIterator* it, uint8_t* key, size_t key_len) {
     return raxSeekSubtreeGeneric(it, key, key_len, true);
 }
 
-static int raxSeekChildrenGeneric(raxIterator* it, uint8_t* key, size_t key_len, bool isrelative) {
-    debugf("raxSeekChildren:: key: '%.*s'; len: %zu\n", (int)len, key, key_len);
+// static int raxSeekChildrenGeneric(raxIterator* it, uint8_t* key, size_t key_len, bool isrelative) {
+//     debugf("raxSeekChildren:: key: '%.*s'; len: %zu\n", (int)len, key, key_len);
 
-    if (isrelative) {
-        if (!raxSeekRelative(it, key, key_len)) return 0;
-    }
-    else {
-        if (!raxSeek(it, "=", key, key_len)) return 0;
-    }
+//     if (isrelative) {
+//         if (!raxSeekRelative(it, key, key_len)) return 0;
+//     }
+//     else {
+//         if (!raxSeek(it, "=", key, key_len)) return 0;
+//     }
 
-    if (key_len) it->stop_node = raxStackPeek(&it->stack); // terminate on ascent above starting node
-    if (it->flags & RAX_ITER_EOF) return 1;
+//     if (key_len) it->stop_node = raxStackPeek(&it->stack); // terminate on ascent above starting node
+//     if (it->flags & RAX_ITER_EOF) return 1;
 
-    while(1) { // find the 1st child key
-        int children = it->node->iscompr ? 1 : it->node->size;
+//     while(1) { // find the 1st child key
+//         int children = it->node->iscompr ? 1 : it->node->size;
 
-        if (children) { // descend trying 1st children
-            raxIteratorPushChildOffset(it, 0);
-            if (!raxStackPush(&it->stack, it->node)) return 0;
-            raxNode** cp = raxNodeFirstChildPtr(it->node);
-            if (!raxIteratorAddChars(it, it->node->data, it->node->iscompr ? it->node->size : 1)) return 0;
-            memcpy(&it->node, cp, sizeof(it->node));
+//         if (children) { // descend trying 1st children
+//             raxIteratorPushChildOffset(it, 0);
+//             if (!raxStackPush(&it->stack, it->node)) return 0;
+//             raxNode** cp = raxNodeFirstChildPtr(it->node);
+//             if (!raxIteratorAddChars(it, it->node->data, it->node->iscompr ? it->node->size : 1)) return 0;
+//             memcpy(&it->node, cp, sizeof(it->node));
 
-            if (it->node->iskey) {
-                it->data = raxGetData(it->node);
-                return 1;
-            }
+//             if (it->node->iskey) {
+//                 it->data = raxGetData(it->node);
+//                 return 1;
+//             }
+//         }
+//         else {
+//             it->flags |= RAX_ITER_EOF;
+//             return 1;
+//         }
+//     }
+//     debugf("raxSeekChildren done\n");
+// }
+
+// int raxSeekChildren(raxIterator* it, uint8_t* key, size_t len) {
+//     return raxSeekChildrenGeneric(it, key, len, false);
+// }
+
+// int raxSeekChildrenRelative(raxIterator* it, uint8_t* key, size_t len) {
+//     return raxSeekChildrenGeneric(it, key, len, true);
+// }
+
+// void raxRecursiveShowHex(int level, int lpad, raxNode *n) {
+//     char s = n->iscompr ? '"' : '[';
+//     char e = n->iscompr ? '"' : ']';
+
+//     int numchars = printf("%c", s);
+//     bool all_printable = true;
+
+//     for (int i = 0; i < n->size && all_printable; i++) all_printable = isprint(n->data[i]);
+
+//     if (all_printable) {
+//         numchars += printf("%.*s", n->size, n->data);
+//     }
+//     else {
+//         if (n->size) numchars += printf("0x");
+//         for (int i = 0; i < n->size; i++) numchars += printf("%02x", n->data[i]);
+//     }
+
+//     numchars += printf("%c", e);
+//     if (n->iskey && raxGetData(n)) numchars += printf("=%p", raxGetData(n));
+//     int numchildren = n->iscompr ? 1 : n->size;
+
+//     /* Note that 7 and 4 magic constants are the string length
+//      * of " `-(x) " and " -> " respectively. */
+//     if (level) {
+//         lpad += (numchildren > 1) ? 7 : 4;
+//         if (numchildren == 1) lpad += numchars;
+//     }
+
+//     raxNode** cp = raxNodeFirstChildPtr(n);
+
+//     for (int i = 0; i < numchildren; i++) {
+//         char* branch = " `-(%c) ";
+
+//         if (numchildren > 1) {
+//             printf("\n");
+//             for (int j = 0; j < lpad; j++) putchar(' ');
+
+//             if (isprint(n->data[i])) {
+//                 printf(branch, n->data[i]);
+//             }
+//             else {
+//                 printf(branch, '.');
+//             }
+//         }
+//         else {
+//             printf(" -> ");
+//         }
+
+//         raxNode* child;
+//         memcpy(&child, cp, sizeof(child));
+//         raxRecursiveShowHex(level + 1, lpad, child);
+//         cp++;
+//     }
+// }
+
+// void raxShowHex(rax* rax) {
+//     raxRecursiveShowHex(0, 0, rax->head);
+//     putchar('\n');
+// }
+
+void raxRecursiveShowHexKey(int level, int lpad, raxNode *n) {
+    char* ss;
+    char* ee;
+
+    if (n->iscompr) {
+        if (n->iskey) {
+            ss = "{\"";
+            ee = "\"}";
         }
         else {
-            it->flags |= RAX_ITER_EOF;
-            return 1;
+            ss = " \"";
+            ee = "\" ";
         }
     }
-    debugf("raxSeekChildren done\n");
-}
+    else {
+        if (n->iskey) {
+            ss = "{[";
+            ee = "]}";
+        }
+        else {
+            ss = " [";
+            ee = "] ";
+        }
+    }
 
-int raxSeekChildren(raxIterator* it, uint8_t* key, size_t len) {
-    return raxSeekChildrenGeneric(it, key, len, false);
-}
-
-int raxSeekChildrenRelative(raxIterator* it, uint8_t* key, size_t len) {
-    return raxSeekChildrenGeneric(it, key, len, true);
-}
-
-void raxRecursiveShowHex(int level, int lpad, raxNode *n) {
-    char s = n->iscompr ? '"' : '[';
-    char e = n->iscompr ? '"' : ']';
-
-    int numchars = printf("%c", s);
+    int numchars = printf("%s", ss);
     bool all_printable = true;
 
     for (int i = 0; i < n->size && all_printable; i++) all_printable = isprint(n->data[i]);
@@ -2211,7 +2292,7 @@ void raxRecursiveShowHex(int level, int lpad, raxNode *n) {
         for (int i = 0; i < n->size; i++) numchars += printf("%02x", n->data[i]);
     }
 
-    numchars += printf("%c", e);
+    numchars += printf("%s", ee);
     if (n->iskey && raxGetData(n)) numchars += printf("=%p", raxGetData(n));
     int numchildren = n->iscompr ? 1 : n->size;
 
@@ -2244,13 +2325,13 @@ void raxRecursiveShowHex(int level, int lpad, raxNode *n) {
 
         raxNode* child;
         memcpy(&child, cp, sizeof(child));
-        raxRecursiveShowHex(level + 1, lpad, child);
+        raxRecursiveShowHexKey(level + 1, lpad, child);
         cp++;
     }
 }
 
-void raxShowHex(rax* rax) {
-    raxRecursiveShowHex(0, 0, rax->head);
+void raxShowHexKey(rax* rax) {
+    raxRecursiveShowHexKey(0, 0, rax->head);
     putchar('\n');
 }
 
@@ -2267,7 +2348,7 @@ int raxRemoveSubtree(rax* tree, uint8_t* key, size_t len) {
     // raxShowHex(del_tree);
 
     if (!raxSeekSubtree(&it2, key, len)) return 0;
-    while(raxNext(&it2)) {raxRemove(tree, it2.key, it2.key_len, NULL); raxShowHex(tree);}
+    while(raxNext(&it2)) raxRemove(tree, it2.key, it2.key_len, NULL);
 
     raxStop(&it2);
     raxStop(&it);

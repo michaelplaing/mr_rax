@@ -14,60 +14,55 @@
 #include "mr_rax_internal.h"
 
 static int mr_makebytecount_VBI(uint64_t u64) {
-    int i = 0;
+    int len = 0;
     do {
         u64 = u64 >> 7;
-        i++;
+        len++;
     } while (u64);
 
-    return i; // number of bytes in result
+    return len; // number of bytes in result
 }
 
 static int mr_make_VBI(uint64_t u64, uint8_t *u8v0) { // u8v0 >= 10 bytes
-    uint8_t *pu8 = u8v0;
-    int i = 0;
-    do {
+    int len = mr_makebytecount_VBI(u64);
+    uint8_t *pu8 = u8v0 + len - 1;
+
+    for (int i = 0; i < len; i++, pu8--) {
         *pu8 = u64 & 0x7F;
         u64 = u64 >> 7;
         if (u64) *pu8 |= 0x80;
-        i++;
-        pu8++;
-    } while (u64);
+    }
 
-    return i; // number of bytes in result
+    return len;
 }
 
-static int mr_extractbytecount_VBI(uint8_t *u8v0) { // u8v0 >= 10 bytes
+static int mr_extractbytecount_VBI(uint8_t *u8v0, size_t len) {
     uint8_t *pu8 = u8v0;
+    if (*pu8 & 0x80) return 0; // overflow: byte[0] has a continuation bit
     int i;
-    for (i = 0; i < 10; pu8++, i++) if (!(*pu8 & 0x80)) break;
-
-    if (i == 10) return 0; // overflow: byte[9] has a continuation bit
-    else return i + 1; // number of bytes consumed
+    pu8++;
+    for (i = 1; i < len; pu8++, i++) if (!(*pu8 & 0x80)) break;
+    return i; // number of bytes consumed
 }
 
-static int mr_extract_VBI(uint8_t *u8v0, uint64_t *pu64) { // u8v0 >= 10 bytes
+static int mr_extract_VBI(uint8_t *u8v0, size_t len, uint64_t *pu64) {
     uint8_t *pu8 = u8v0;
-    uint64_t u64 = 0;
+    if (*pu8 & 0x80) return 0; // overflow: byte[0] has a continuation bit
+    uint64_t u64 = *pu8++;
     int i;
 
-    for (i = 0; i < 10; pu8++, i++){
-        u64 += (*pu8 & 0x7F) << (7 * i);
+    for (i = 1; i < len; pu8++, i++){
         if (!(*pu8 & 0x80)) break;
+        u64 = (u64 << 7) + (*pu8 & 0x7F);
     }
 
-    if (i == 10) { // overflow: byte[9] has a continuation bit
-        return 0;
-    }
-    else {
-        *pu64 = u64;
-        return i + 1; // number of bytes consumed
-    }
+    *pu64 = u64;
+    return i;
 }
 
-int mr_next_vbi(raxIterator* piter, uint64_t* pu64) {
+int mr_next_client(raxIterator* piter, uint64_t* pu64) {
     if (!raxNext(piter)) return 0;
-    mr_extract_VBI(piter->key, pu64);
+    mr_extract_VBI(piter->key, piter->key_len, pu64);
     return 1;
 }
 
@@ -147,6 +142,7 @@ static int mr_insert_topic_tree(rax* topic_tree, const char* topic) {
 }
 
 int mr_insert_subscription(rax* topic_tree, rax* client_tree, const char* subtopic, const uint64_t client) {
+    // printf("mr_insert_subscription:: subtopic: %s; client: %llu\n", subtopic, client);
     size_t stlen = strlen(subtopic);
     char topic[stlen + 3];
     char share[stlen + 1];
@@ -156,7 +152,14 @@ int mr_insert_subscription(rax* topic_tree, rax* client_tree, const char* subtop
     size_t tlen = strlen(topic);
     size_t slen = strlen(share);
     size_t tklen = strlen(topic_key);
-    size_t clen = mr_makebytecount_VBI(client);
+
+    // get the client bytes in network order (big endian) as a Variable Byte Integer (VBI)
+    uint8_t clientv[10]; // 64 bits @ 7 bits per byte => 10 bytes max needed
+    size_t clen = mr_make_VBI(client, clientv);
+
+    // printf("  client: %llu; clen: %zu; clientv:", client, clen);
+    // for (int i = 0; i < clen; i++) printf(" %02x", clientv[i]);
+    // puts("");
 
     mr_insert_topic_tree(topic_tree, topic);
 
@@ -178,9 +181,6 @@ int mr_insert_subscription(rax* topic_tree, rax* client_tree, const char* subtop
         raxTryInsert(topic_tree, topic_key2, tklen + 1, NULL, NULL);
     }
 
-    // get the client bytes in network order (big endian) as a Variable Byte Integer (VBI)
-    uint8_t clientv[10]; // 64 bits @ 7 bits per byte => 10 bytes max needed
-    mr_make_VBI(client, clientv);
     memcpy(topic_key2 + tklen2, clientv, clen);
     raxInsert(topic_tree, topic_key2, tklen2 + clen, NULL, NULL); // insert the client
 
@@ -197,8 +197,6 @@ int mr_insert_subscription(rax* topic_tree, rax* client_tree, const char* subtop
 }
 
 static int mr_trim_topic(rax* topic_tree, raxIterator* piter, uint8_t* topic_key, size_t len) {
-    // raxSeekChildren(piter, topic_key, len);
-    // if (raxNextChild(piter)) return 0; // has children still
     if (!raxIsLeaf(topic_tree, topic_key, len)) return 0;
     raxRemove(topic_tree, topic_key, len, NULL);
     return 1;
@@ -309,8 +307,6 @@ int mr_remove_client_subscriptions(rax* topic_tree, rax* client_tree, const uint
     uint8_t inversion[clen + 4];
     memcpy(inversion, clientv, clen);
     memcpy(inversion + clen, "subs", 4);
-    // raxSeekChildren(&iter, inversion, clen + 4);
-    // while(raxNextChild(&iter)) raxInsert(srax, iter.key + clen + 4, iter.key_len - (clen + 4), NULL, NULL);
     raxSeekSubtree(&iter, inversion, clen + 4);
     raxNext(&iter); // skip 1st key
     while(raxNext(&iter)) raxInsert(srax, iter.key + clen + 4, iter.key_len - (clen + 4), NULL, NULL);
@@ -325,7 +321,6 @@ int mr_remove_client_subscriptions(rax* topic_tree, rax* client_tree, const uint
     }
 
     raxFree(srax);
-    // raxFreeSubtree(client_tree, inversion, clen + 4);
     raxRemoveSubtree(client_tree, inversion, clen + 4);
     raxStart(&iter, client_tree);
     mr_trim_topic(client_tree, &iter, inversion, clen);
@@ -560,10 +555,8 @@ int mr_remove_client_topic_aliases(rax* client_tree, const uint64_t client) {
     uint8_t clientv[10] = {0};
     size_t clen = mr_make_VBI(client, clientv);
     uint8_t aliases[clen + 7];
-    // for (int i = 0; i < 8; i++) aliases[i] = client >> ((7 - i) * 8) & 0xff;
     memcpy(aliases, clientv, clen);
     memcpy(aliases + clen, "aliases", 7);
-    // raxFreeSubtreeWithCallback(client_tree, aliases, 8 + 7, rax_free);
     raxRemoveSubtree(client_tree, aliases, clen + 7);
     return 0;
 }
@@ -573,18 +566,16 @@ int mr_get_alias_by_topic(rax* client_tree, const uint64_t client, const bool is
     uint8_t clientv[10] = {0};
     size_t clen = mr_make_VBI(client, clientv);
     uint8_t abt[clen + 16 + ptlen]; // <Client ID>"aliasesclientabt"<pubtopic>
-    // for (int i = 0; i < 8; i++) abt[i] = client >> ((7 - i) * 8) & 0xff;
     memcpy(abt, clientv, clen);
     memcpy(abt + clen, "aliases", 7);
     char* source = isclient ? "client" : "server";
     memcpy(abt + clen + 7, source, 6);
     memcpy(abt + clen + 7 + 6, "abt", 3);
     memcpy(abt + clen + 16, pubtopic, ptlen);
-    printf("Seek abt:: %d '%.*s' '%.*s'\n", abt[0], 16, abt + 1, (int)ptlen, abt + clen + 16);
+    // printf("Seek abt:: %d '%.*s' '%.*s'\n", abt[0], 16, abt + 1, (int)ptlen, abt + clen + 16);
     raxIterator iter;
     raxStart(&iter, client_tree);
 
-    // if (raxSeekChildren(&iter, abt, clen + 16 + ptlen) && raxNextChild(&iter)) {
     if (raxSeek(&iter, "=", abt, clen + 16 + ptlen) && raxNext(&iter) && raxNext(&iter)) {
         *palias = iter.key[iter.key_len - 1];
     }
@@ -626,10 +617,7 @@ int mr_remove_client_data(rax* topic_tree, rax* client_tree, uint64_t client) {
     mr_remove_client_subscriptions(topic_tree, client_tree, client);
     uint8_t clientv[10] = {0};
     size_t clen = mr_make_VBI(client, clientv);
-    // uint8_t clientv[8];
-    // for (int i = 0; i < 8; i++) clientv[i] = client >> ((7 - i) * 8) & 0xff;
-    // raxFreeSubtreeWithCallback(client_tree, clientv, 8, rax_free);
-    printf("mr_remove_client_data:: clientv[0]: %hhx; clen: %zu\n", clientv[0], clen);
+    // printf("mr_remove_client_data:: clientv[0]: %hhx; clen: %zu\n", clientv[0], clen);
     raxRemoveSubtree(client_tree, clientv, clen);
     return 0;
 }
