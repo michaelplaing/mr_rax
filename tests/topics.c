@@ -183,6 +183,9 @@ int topic_fun(void) {
 
 // scratch area
 
+    // uint64_t c = 128;
+    // int cl = mr
+
     // rax* test_tree = raxNew();
     // raxIterator it;
     // raxStart(&it, test_tree);

@@ -13,37 +13,75 @@
 #include "rax_internal.h"
 #include "mr_rax_internal.h"
 
-static int mr_makebytecount_VBI(uint64_t u64) {
-    int len = 0;
-    do {
-        u64 = u64 >> 7;
-        len++;
-    } while (u64);
+// static int mr_makebytecount_VBI(uint64_t u64) {
+//     int len = 0;
+//     do {
+//         u64 = u64 >> 7;
+//         len++;
+//     } while (u64);
 
-    return len; // number of bytes in result
-}
+//     return len; // number of bytes in result
+// }
+
+// static int mr_make_VBI(uint64_t u64, uint8_t *u8v0) { // u8v0 >= 10 bytes
+//     int len = mr_makebytecount_VBI(u64);
+//     uint8_t *pu8 = u8v0 + len - 1;
+
+//     for (int i = 0; i < len; i++, pu8--) {
+//         *pu8 = u64 & 0x7F;
+//         u64 = u64 >> 7;
+//         if (u64) *pu8 |= 0x80;
+//     }
+
+//     return len;
+// }
+
+// /* Toggle the 32 bit unsigned integer pointed by *p from little endian to
+//  * big endian */
+// void memrev32(void *p) {
+//     unsigned char *x = p, t;
+
+//     t = x[0];
+//     x[0] = x[3];
+//     x[3] = t;
+//     t = x[1];
+//     x[1] = x[2];
+//     x[2] = t;
+// }
 
 static int mr_make_VBI(uint64_t u64, uint8_t *u8v0) { // u8v0 >= 10 bytes
-    int len = mr_makebytecount_VBI(u64);
-    uint8_t *pu8 = u8v0 + len - 1;
-
-    for (int i = 0; i < len; i++, pu8--) {
-        *pu8 = u64 & 0x7F;
-        u64 = u64 >> 7;
-        if (u64) *pu8 |= 0x80;
+    if (u64 == 0) {
+        *u8v0 = '\0';
+        return 1;
     }
 
-    return len;
+    uint8_t t;
+    int j = 0;
+    bool f = false;
+
+    for (int i = 0; i < 10; i++) {
+        t = u64 >> (7 * (9 - i)) & 0x7f;
+
+        if (f) {
+            u8v0[j++] = t | 0x80;
+        }
+        else if (t) {
+            u8v0[j++] = t;
+            f = true;
+        }
+    }
+
+    return j;
 }
 
-static int mr_extractbytecount_VBI(uint8_t *u8v0, size_t len) {
-    uint8_t *pu8 = u8v0;
-    if (*pu8 & 0x80) return 0; // overflow: byte[0] has a continuation bit
-    int i;
-    pu8++;
-    for (i = 1; i < len; pu8++, i++) if (!(*pu8 & 0x80)) break;
-    return i; // number of bytes consumed
-}
+// static int mr_extractbytecount_VBI(uint8_t *u8v0, size_t len) {
+//     uint8_t *pu8 = u8v0;
+//     if (*pu8 & 0x80) return 0; // overflow: byte[0] has a continuation bit
+//     int i;
+//     pu8++;
+//     for (i = 1; i < len; pu8++, i++) if (!(*pu8 & 0x80)) break;
+//     return i; // number of bytes consumed
+// }
 
 static int mr_extract_VBI(uint8_t *u8v0, size_t len, uint64_t *pu64) {
     uint8_t *pu8 = u8v0;

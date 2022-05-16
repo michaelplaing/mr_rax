@@ -2259,24 +2259,12 @@ void raxRecursiveShowHexKey(int level, int lpad, raxNode *n) {
     char* ee;
 
     if (n->iscompr) {
-        if (n->iskey) {
-            ss = "{\"";
-            ee = "\"}";
-        }
-        else {
-            ss = " \"";
-            ee = "\" ";
-        }
+        if (n->iskey) {ss = "{\""; ee = "\"}";}
+        else {ss = "\""; ee = "\"";}
     }
     else {
-        if (n->iskey) {
-            ss = "{[";
-            ee = "]}";
-        }
-        else {
-            ss = " [";
-            ee = "] ";
-        }
+        if (n->iskey) {ss = "{["; ee = "]}";}
+        else {ss = "["; ee = "]";}
     }
 
     int numchars = printf("%s", ss);
@@ -2284,9 +2272,7 @@ void raxRecursiveShowHexKey(int level, int lpad, raxNode *n) {
 
     for (int i = 0; i < n->size && all_printable; i++) all_printable = isprint(n->data[i]);
 
-    if (all_printable) {
-        numchars += printf("%.*s", n->size, n->data);
-    }
+    if (all_printable) numchars += printf("%.*s", n->size, n->data);
     else {
         if (n->size) numchars += printf("0x");
         for (int i = 0; i < n->size; i++) numchars += printf("%02x", n->data[i]);
@@ -2312,16 +2298,10 @@ void raxRecursiveShowHexKey(int level, int lpad, raxNode *n) {
             printf("\n");
             for (int j = 0; j < lpad; j++) putchar(' ');
 
-            if (isprint(n->data[i])) {
-                printf(branch, n->data[i]);
-            }
-            else {
-                printf(branch, '.');
-            }
+            if (isprint(n->data[i])) printf(branch, n->data[i]);
+            else printf(branch, '.');
         }
-        else {
-            printf(" -> ");
-        }
+        else printf(" -> ");
 
         raxNode* child;
         memcpy(&child, cp, sizeof(child));
@@ -2345,7 +2325,6 @@ int raxRemoveSubtree(rax* tree, uint8_t* key, size_t len) {
 
     if (!raxSeekSubtree(&it, key, len)) return 0;
     while(raxNext(&it)) raxInsert(del_tree, it.key, it.key_len, NULL, NULL);
-    // raxShowHex(del_tree);
 
     if (!raxSeekSubtree(&it2, key, len)) return 0;
     while(raxNext(&it2)) raxRemove(tree, it2.key, it2.key_len, NULL);
