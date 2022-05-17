@@ -138,7 +138,7 @@ For easier visualization of binary data, e.g. Client IDs and timestamps, and for
 
 ### Overlaying the Topic Tree on Rax
 
-Each token subtree in a normalized topic is stored as a key. The client mark subtree, shared mark subtree and share subtree are also keys. Finally, the entire topic with Client ID is a key. Hence inserting ``@foobar<0xff><0x0000000000000001>`` would result in the following 5 keys:
+Each token subtree in a normalized topic is stored as a key. The client mark subtree, shared mark subtree and share subtree are also keys. Finally, the entire topic with Client ID is a key. Hence inserting ``@foobar<0xff><0x01>`` would result in the following 5 keys:
 ```
 @
 ↑
@@ -189,6 +189,8 @@ The additions to Rax include ``raxShowHexKey()``. When the 12 subscriptions abov
                                          `—(.) {[]}
         `—(.) "0x8592"->{"0xe590a7"}->{[0xff]}->{[0x08]}->{[]}
 ```
+Note that ``Client ID 0x0180`` for topic ``foo/#`` is spread across nodes due to prefix compression.
+
 More explanation of the structure is in the Rax README and ``rax.c``.
 
 ### The Topic Tree search strategy
