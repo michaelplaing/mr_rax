@@ -133,9 +133,9 @@ int topic_fun(void) {
     // mr_remove_client_topic_aliases(client_tree, 1);
     // mr_remove_client_data(topic_tree, client_tree, 1);
 
-    printf("topic_tree:: numele: %llu; numnodes: %llu\n", topic_tree->numele, topic_tree->numnodes);
+    printf("\ntopic_tree:: numele: %llu; numnodes: %llu\n", topic_tree->numele, topic_tree->numnodes);
     raxShowHexKey(topic_tree);
-    printf("client_tree:: numele: %llu; numnodes: %llu\n", client_tree->numele, client_tree->numnodes);
+    printf("\nclient_tree:: numele: %llu; numnodes: %llu\n", client_tree->numele, client_tree->numnodes);
     raxShowHexKey(client_tree);
 
     // printf("raxShowHex\n");
@@ -147,7 +147,7 @@ int topic_fun(void) {
     // printf("Found:: Key: %.*s; len: %zu\n", (int)titer.key_len, titer.key, titer.key_len);
     // raxStop(&titer);
 
-    printf("get matching clients for '%s'\n", pubtopic);
+    printf("\nget matching clients for '%s'\n", pubtopic);
 
     rax* client_set = raxNew();
     mr_get_subscribed_clients(topic_tree, client_set, pubtopic);

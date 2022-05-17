@@ -11,6 +11,7 @@
 // invalid utf8 chars used to separate clients & shared subs from topics
 static uint8_t shared_mark = 0xfe;
 static uint8_t client_mark = 0xff;
+static uint8_t client_suffix = 0x00;
 
 // MQTT disallowed control char used to represent a zero-length token
 static char empty_tokenv[] = {0x1f, 0};

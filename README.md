@@ -167,7 +167,7 @@ When ``@foobar<0xff><0x02>`` is also inserted, we get:
                  ↑
 ```
 
-The additions to Rax include ``raxShowHexKey()``. When the 12 subscriptions above are applied to the Topic Tree they result in the following ASCII art of the Rax internal structures, illustrating prefix compression, node compression, adaptive node sizes and whether a node is a ``{<key>}``. A tricky part is that the edge byte pointing to a node is not stored in the node itself but in the parent node.
+The additions to Rax include ``raxShowHexKey()``. When the 12 subscriptions above are applied to the Topic Tree they result in the following ASCII diagram of the Rax internal structures, illustrating prefix compression, node compression, adaptive node sizes and whether a node is a ``{<key>}``. A tricky part is that the edge byte pointing to a node is not stored in the node itself but in the parent node.
 ```
 [$@]
  `-($) {"$SYS"} -> {"foo"} -> {[#]} -> {[0xff]} -> {[0x01]} -> {[]}
@@ -245,31 +245,32 @@ The client tree uses the external format for both Subscribe and Publish Topics.
 
 Topic aliases are in 2 distinct sets: ones set by the client and those set by the server. Hence there are 2 pairs (handling inversion) of synchronized subtrees for each client, providing alias-by-topic and topic-by-alias for client and server aliases.
 
-Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` then running ``raxShowHexKey()`` yields the following depiction of our 9 clients, their 12 subscriptions and the 2 aliases in the client tree:
-
+Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` (set by the client) plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` (set by the server) then running ``raxShowHexKey()`` yields the following depiction of our 9 clients, their 12 subscriptions and the 2 aliases in the client tree:
 ```
 [0x0102030405060708]
- `-(.) {[0x617380]}
-        `-(a) "liases" -> {[cs]}
-                           `-(c) "lient" -> {[at]}
-                                             `-(a) "bt" -> {"baz/bam"} -> {[0x08]} -> {[]}
-                                             `-(t) "ba" -> {[0x08]} -> {"baz/bam"} -> {[]}
-                           `-(s) "erver" -> {[at]}
-                                             `-(a) "bt" -> {"foo/bar"} -> {[0x08]} -> {[]}
-                                             `-(t) "ba" -> {[0x08]} -> {"foo/bar"} -> {[]}
-        `-(s) "ubs" -> {[$f]}
-                        `-($) "SYS/foo/#" -> {[]}
-                        `-(f) "oo/" -> [#b]
-                                        `-(#) {[]}
-                                        `-(b) "ar" -> {[]}
-        `-(.) {"subs"} -> {"foo/#"} -> {[]}
- `-(.) {"subs"} -> {"foo/bar"} -> {[]}
- `-(.) {"subs"} -> {"foo/bar/"} -> {[]}
- `-(.) {"subs"} -> {"$share/baz/foo/bar"} -> {[]}
- `-(.) {"subs"} -> {"$share/baz/foo/bar"} -> {[]}
- `-(.) {"subs"} -> {"$share/bazzle/foo/bar"} -> {[]}
- `-(.) {"subs"} -> {"+/bar"} -> {[]}
- `-(.) {"subs"} -> {[0x66e9]}
-                    `-(f) "oo/#" -> {[]}
-                    `-(.) "0x85922fe590a7" -> {[]}
+ `—(.) [0x0080]
+        `—(.) {[as]}
+               `—(a) "liases" -> {[cs]}
+                                  `—(c) "lient" -> {[at]}
+                                                    `—(a) "bt" -> {"baz/bam"} -> {[0x08]} -> {[]}
+                                                    `—(t) "ba" -> {[0x08]} -> {"baz/bam"} -> {[]}
+                                  `—(s) "erver" -> {[at]}
+                                                    `—(a) "bt" -> {"foo/bar"} -> {[0x08]} -> {[]}
+                                                    `—(t) "ba" -> {[0x08]} -> {"foo/bar"} -> {[]}
+               `—(s) "ubs" -> {[$f]}
+                               `—($) "SYS/foo/#" -> {[]}
+                               `—(f) "oo/" -> [#b]
+                                               `—(#) {[]}
+                                               `—(b) "ar" -> {[]}
+        `—(.) [0x00] -> {"subs"} -> {"foo/#"} -> {[]}
+ `—(.) [0x00] -> {"subs"} -> {"foo/bar"} -> {[]}
+ `—(.) [0x00] -> {"subs"} -> {"foo/bar/"} -> {[]}
+ `—(.) [0x00] -> {"subs"} -> {"$share/baz/foo/bar"} -> {[]}
+ `—(.) [0x00] -> {"subs"} -> {"$share/baz/foo/bar"} -> {[]}
+ `—(.) [0x00] -> {"subs"} -> {"$share/bazzle/foo/bar"} -> {[]}
+ `—(.) [0x00] -> {"subs"} -> {"+/bar"} -> {[]}
+ `—(.) [0x00] -> {"subs"} -> {[0x66e9]}
+                              `—(f) "oo/#" -> {[]}
+                              `—(.) "0x85922fe590a7" -> {[]}
 ```
+There is a null byte suffix on the VBI Client IDs which is useful to distinguish them. A Client ID of 0 is invalid, which facilitates this approach.
