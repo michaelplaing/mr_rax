@@ -250,27 +250,27 @@ Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` (set by 
 [0x0102030405060708]
  `—(.) [0x0080]
         `—(.) {[as]}
-               `—(a) "liases" -> {[cs]}
-                                  `—(c) "lient" -> {[at]}
-                                                    `—(a) "bt" -> {"baz/bam"} -> {[0x08]} -> {[]}
-                                                    `—(t) "ba" -> {[0x08]} -> {"baz/bam"} -> {[]}
-                                  `—(s) "erver" -> {[at]}
-                                                    `—(a) "bt" -> {"foo/bar"} -> {[0x08]} -> {[]}
-                                                    `—(t) "ba" -> {[0x08]} -> {"foo/bar"} -> {[]}
-               `—(s) "ubs" -> {[$f]}
-                               `—($) "SYS/foo/#" -> {[]}
-                               `—(f) "oo/" -> [#b]
-                                               `—(#) {[]}
-                                               `—(b) "ar" -> {[]}
-        `—(.) [0x00] -> {"subs"} -> {"foo/#"} -> {[]}
- `—(.) [0x00] -> {"subs"} -> {"foo/bar"} -> {[]}
- `—(.) [0x00] -> {"subs"} -> {"foo/bar/"} -> {[]}
- `—(.) [0x00] -> {"subs"} -> {"$share/baz/foo/bar"} -> {[]}
- `—(.) [0x00] -> {"subs"} -> {"$share/baz/foo/bar"} -> {[]}
- `—(.) [0x00] -> {"subs"} -> {"$share/bazzle/foo/bar"} -> {[]}
- `—(.) [0x00] -> {"subs"} -> {"+/bar"} -> {[]}
- `—(.) [0x00] -> {"subs"} -> {[0x66e9]}
-                              `—(f) "oo/#" -> {[]}
-                              `—(.) "0x85922fe590a7" -> {[]}
+               `—(a) "liases" ⟶ {[cs]}
+                                 `—(c) "lient" ⟶ {[at]}
+                                                  `—(a) "bt" ⟶ {"baz/bam"} ⟶ {[0x08]} ⟶ {[]}
+                                                  `—(t) "ba" ⟶ {[0x08]} ⟶ {"baz/bam"} ⟶ {[]}
+                                 `—(s) "erver" ⟶ {[at]}
+                                                  `—(a) "bt" ⟶ {"foo/bar"} ⟶ {[0x08]} ⟶ {[]}
+                                                  `—(t) "ba" ⟶ {[0x08]} ⟶ {"foo/bar"} ⟶ {[]}
+               `—(s) "ubs" ⟶ {[$f]}
+                              `—($) "SYS/foo/#" ⟶ {[]}
+                              `—(f) "oo/" ⟶ [#b]
+                                             `—(#) {[]}
+                                             `—(b) "ar" ⟶ {[]}
+        `—(.) [0x00] ⟶ {"subs"} ⟶ {"foo/#"} ⟶ {[]}
+ `—(.) [0x00] ⟶ {"subs"} ⟶ {"foo/bar"} ⟶ {[]}
+ `—(.) [0x00] ⟶ {"subs"} ⟶ {"foo/bar/"} ⟶ {[]}
+ `—(.) [0x00] ⟶ {"subs"} ⟶ {"$share/baz/foo/bar"} ⟶ {[]}
+ `—(.) [0x00] ⟶ {"subs"} ⟶ {"$share/baz/foo/bar"} ⟶ {[]}
+ `—(.) [0x00] ⟶ {"subs"} ⟶ {"$share/bazzle/foo/bar"} ⟶ {[]}
+ `—(.) [0x00] ⟶ {"subs"} ⟶ {"+/bar"} ⟶ {[]}
+ `—(.) [0x00] ⟶ {"subs"} ⟶ {[0x66e9]}
+                            `—(f) "oo/#" ⟶ {[]}
+                            `—(.) "0x85922fe590a7" ⟶ {[]}
 ```
 There is a null byte suffix on the VBI Client IDs which is useful to distinguish them. A Client ID of 0 is invalid, which facilitates this approach.
