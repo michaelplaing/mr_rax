@@ -273,4 +273,4 @@ Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` (set by 
                           `—(f) "oo/#"->{[]}
                           `—(.) "0x85922fe590a7"->{[]}
 ```
-There is a null byte suffix on the VBI Client IDs which is useful to distinguish them. A Client ID of 0 is invalid, which facilitates this approach.
+There is a null byte suffix on the VBI-encoded Client IDs which is useful for distinguishing them, e.g. when removing an entire client subtree. A Client ID of 0 is invalid, which facilitates this approach.
