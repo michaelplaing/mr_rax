@@ -2285,7 +2285,7 @@ void raxRecursiveShowHexKey(int level, int lpad, raxNode *n) {
     /* Note that 7 and 2 magic constants are the string length
      * of " `—(x) " and "->" respectively. */
     if (level) {
-        lpad += (numchildren > 1) ? 7 : 3;
+        lpad += (numchildren > 1) ? 7 : 2;
         if (numchildren == 1) lpad += numchars;
     }
 
@@ -2301,7 +2301,7 @@ void raxRecursiveShowHexKey(int level, int lpad, raxNode *n) {
             if (isprint(n->data[i])) printf(branch, n->data[i]);
             else printf(branch, '.');
         }
-        else printf(" ⟶ ");
+        else printf("->");
 
         raxNode* child;
         memcpy(&child, cp, sizeof(child));

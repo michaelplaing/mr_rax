@@ -170,24 +170,24 @@ When ``@foobar<0xff><0x02>`` is also inserted, we get:
 The additions to Rax include ``raxShowHexKey()``. When the 12 subscriptions above are applied to the Topic Tree they result in the following ASCII diagram of the Rax internal structures, illustrating prefix compression, node compression, adaptive node sizes and whether a node is a ``{<key>}``. A tricky part is that the edge byte pointing to a node is not stored in the node itself but in the parent node.
 ```
 [$@]
- `-($) {"$SYS"} -> {"foo"} -> {[#]} -> {[0xff]} -> {[0x01]} -> {[]}
- `-(@) {[0x2b66e9]}
-        `-(+) {"bar"} -> {[0xff]} -> {[0x07]} -> {[]}
-        `-(f) "oo" -> {[#b]}
-                       `-(#) {[0xff]} -> {[0x0108]}
-                                          `-(.) {[0x80]} -> {[]}
-                                          `-(.) {[]}
-                       `-(b) "ar" -> {[0x1ffeff]}
-                                      `-(.) {[0xff]} -> {[0x03]} -> {[]}
-                                      `-(.) {"baz"} -> {[0x7aff]}
-                                                        `-(z) "le" -> {[0xff]} -> {[0x06]} -> {[]}
-                                                        `-(.) {[0x0405]}
-                                                               `-(.) {[]}
-                                                               `-(.) {[]}
-                                      `-(.) {[0x0102]}
-                                             `-(.) {[]}
-                                             `-(.) {[]}
-        `-(.) "0x8592" -> {"0xe590a7"} -> {[0xff]} -> {[0x08]} -> {[]}
+ `—($) {"$SYS"}->{"foo"}->{[#]}->{[0xff]}->{[0x01]}->{[]}
+ `—(@) {[0x2b66e9]}
+        `—(+) {"bar"}->{[0xff]}->{[0x07]}->{[]}
+        `—(f) "oo"->{[#b]}
+                     `—(#) {[0xff]}->{[0x0108]}
+                                      `—(.) {[0x80]}->{[]}
+                                      `—(.) {[]}
+                     `—(b) "ar"->{[0x1ffeff]}
+                                  `—(.) {[0xff]}->{[0x03]}->{[]}
+                                  `—(.) {"baz"}->{[0x7aff]}
+                                                  `—(z) "le"->{[0xff]}->{[0x06]}->{[]}
+                                                  `—(.) {[0x0405]}
+                                                         `—(.) {[]}
+                                                         `—(.) {[]}
+                                  `—(.) {[0x0102]}
+                                         `—(.) {[]}
+                                         `—(.) {[]}
+        `—(.) "0x8592"->{"0xe590a7"}->{[0xff]}->{[0x08]}->{[]}
 ```
 More explanation of the structure is in the Rax README and ``rax.c``.
 
@@ -250,27 +250,27 @@ Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` (set by 
 [0x0102030405060708]
  `—(.) [0x0080]
         `—(.) {[as]}
-               `—(a) "liases" ⟶ {[cs]}
-                                 `—(c) "lient" ⟶ {[at]}
-                                                  `—(a) "bt" ⟶ {"baz/bam"} ⟶ {[0x08]} ⟶ {[]}
-                                                  `—(t) "ba" ⟶ {[0x08]} ⟶ {"baz/bam"} ⟶ {[]}
-                                 `—(s) "erver" ⟶ {[at]}
-                                                  `—(a) "bt" ⟶ {"foo/bar"} ⟶ {[0x08]} ⟶ {[]}
-                                                  `—(t) "ba" ⟶ {[0x08]} ⟶ {"foo/bar"} ⟶ {[]}
-               `—(s) "ubs" ⟶ {[$f]}
-                              `—($) "SYS/foo/#" ⟶ {[]}
-                              `—(f) "oo/" ⟶ [#b]
-                                             `—(#) {[]}
-                                             `—(b) "ar" ⟶ {[]}
-        `—(.) [0x00] ⟶ {"subs"} ⟶ {"foo/#"} ⟶ {[]}
- `—(.) [0x00] ⟶ {"subs"} ⟶ {"foo/bar"} ⟶ {[]}
- `—(.) [0x00] ⟶ {"subs"} ⟶ {"foo/bar/"} ⟶ {[]}
- `—(.) [0x00] ⟶ {"subs"} ⟶ {"$share/baz/foo/bar"} ⟶ {[]}
- `—(.) [0x00] ⟶ {"subs"} ⟶ {"$share/baz/foo/bar"} ⟶ {[]}
- `—(.) [0x00] ⟶ {"subs"} ⟶ {"$share/bazzle/foo/bar"} ⟶ {[]}
- `—(.) [0x00] ⟶ {"subs"} ⟶ {"+/bar"} ⟶ {[]}
- `—(.) [0x00] ⟶ {"subs"} ⟶ {[0x66e9]}
-                            `—(f) "oo/#" ⟶ {[]}
-                            `—(.) "0x85922fe590a7" ⟶ {[]}
+               `—(a) "liases"->{[cs]}
+                                `—(c) "lient"->{[at]}
+                                                `—(a) "bt"->{"baz/bam"}->{[0x08]}->{[]}
+                                                `—(t) "ba"->{[0x08]}->{"baz/bam"}->{[]}
+                                `—(s) "erver"->{[at]}
+                                                `—(a) "bt"->{"foo/bar"}->{[0x08]}->{[]}
+                                                `—(t) "ba"->{[0x08]}->{"foo/bar"}->{[]}
+               `—(s) "ubs"->{[$f]}
+                             `—($) "SYS/foo/#"->{[]}
+                             `—(f) "oo/"->[#b]
+                                           `—(#) {[]}
+                                           `—(b) "ar"->{[]}
+        `—(.) [0x00]->{"subs"}->{"foo/#"}->{[]}
+ `—(.) [0x00]->{"subs"}->{"foo/bar"}->{[]}
+ `—(.) [0x00]->{"subs"}->{"foo/bar/"}->{[]}
+ `—(.) [0x00]->{"subs"}->{"$share/baz/foo/bar"}->{[]}
+ `—(.) [0x00]->{"subs"}->{"$share/baz/foo/bar"}->{[]}
+ `—(.) [0x00]->{"subs"}->{"$share/bazzle/foo/bar"}->{[]}
+ `—(.) [0x00]->{"subs"}->{"+/bar"}->{[]}
+ `—(.) [0x00]->{"subs"}->{[0x66e9]}
+                          `—(f) "oo/#"->{[]}
+                          `—(.) "0x85922fe590a7"->{[]}
 ```
 There is a null byte suffix on the VBI Client IDs which is useful to distinguish them. A Client ID of 0 is invalid, which facilitates this approach.
