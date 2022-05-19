@@ -207,6 +207,18 @@ int topic_fun(void) {
     // raxStop(&it);
     // raxFree(test_tree);
 
+    int numbits = 4;
+    size_t u8vlen = (64 + numbits - 1) / numbits;
+    uint8_t u8v[u8vlen];
+    uint64_t in = 0;
+    int len = mr_make_BEVBVBI(in, u8v, u8vlen, numbits);
+    printf("mr_make_BEVBVBI: numbits: %d; u8vlen: %zu; in: %llu; len: %d; u8v:", numbits, u8vlen, in, len);
+    for (int i = 0; i < len; i++) printf(" %02x", u8v[i]);
+    puts("");
+    uint64_t out = 0;
+    size_t outlen = mr_extract_BEVBVBI(u8v, len, numbits, &out);
+    printf("mr_extract_BEVBVBI: outlen: %zu; out: %llu\n", outlen, out);
+
 // end scratch
 
     return 0;

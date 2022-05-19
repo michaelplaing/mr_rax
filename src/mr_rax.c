@@ -13,21 +13,29 @@
 #include "rax_internal.h"
 #include "mr_rax_internal.h"
 
-// Make a Big Endian Variable Byte Integer
-static int mr_make_BEVBI(uint64_t u64, uint8_t *u8v0) { // u8v0 >= 10 bytes
+// Make a normal Big Endian Variable Byte Integer (7 bits - u8v should be at least 10 bytes)
+static int mr_make_BEVBI(uint64_t u64, uint8_t *u8v) {
+    return mr_make_BEVBVBI(u64, u8v, 10, 7);
+}
+
+// Make a Big Endian Variable Bit Variable Byte Integer
+// u8vlen should be at least ((64 + numbits - 1) / numbits) bytes
+
+int mr_make_BEVBVBI(uint64_t u64, uint8_t *u8v, size_t u8vlen, int numbits) {
     if (u64 == 0) {
-        *u8v0 = '\0';
+        *u8v = '\0';
         return 1;
     }
 
+    uint8_t mask = 0xff >> (8 - numbits);
     int len = 0;
     bool f = false;
 
-    for (int i = 0; i < 10; i++) {
-        u8v0[len] = u64 >> (7 * (9 - i)) & 0x7f;
+    for (int i = 0; i < u8vlen; i++) {
+        u8v[len] = u64 >> (numbits * (u8vlen - 1 - i)) & mask;
 
-        if (f) u8v0[len++] |= 0x80;
-        else if (u8v0[len]) {
+        if (f) u8v[len++] |= 0x80;
+        else if (u8v[len]) {
             f = true;
             len++;
         }
@@ -36,19 +44,25 @@ static int mr_make_BEVBI(uint64_t u64, uint8_t *u8v0) { // u8v0 >= 10 bytes
     return len;
 }
 
-// Extract a Big Endian Variable Byte Integer
-static int mr_extract_BEVBI(uint8_t *u8v0, size_t len, uint64_t *pu64) {
-    uint8_t *pu8 = u8v0;
+// Extract a Big Endian Variable Bit Variable Byte Integer
+int mr_extract_BEVBVBI(uint8_t *u8v, size_t u8vlen, int numbits, uint64_t *pu64) {
+    uint8_t *pu8 = u8v;
     if (*pu8 & 0x80) return 0; // fail: byte[0] has a continuation bit
+    uint8_t mask = 0xff >> (8 - numbits);
     uint64_t u64 = *pu8++;
 
-    for (int i = 1; i < len; pu8++, i++){
+    for (int i = 1; i < u8vlen; pu8++, i++){
         if (!(*pu8 & 0x80)) return 0; // fail: byte[1+] missing the continuation bit
-        u64 = (u64 << 7) + (*pu8 & 0x7F);
+        u64 = (u64 << numbits) + (*pu8 & mask);
     }
 
     *pu64 = u64;
-    return 1; // exactly len bytes consumed
+    return u8vlen; // exactly u8vlen bytes consumed
+}
+
+// Extract a normal Big Endian Variable Byte Integer (7 bits)
+static int mr_extract_BEVBI(uint8_t *u8v, size_t u8vlen, uint64_t *pu64) {
+    return mr_extract_BEVBVBI(u8v, u8vlen, 7, pu64);
 }
 
 int mr_next_client(raxIterator* piter, uint64_t* pu64) {

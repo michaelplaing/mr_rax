@@ -32,4 +32,7 @@ int mr_get_alias_by_topic(rax* client_tree, const uint64_t client, const bool is
 int mr_get_topic_by_alias(rax* client_tree, const uint64_t client, const bool isincoming, const uint8_t alias, char* pubtopic);
 int mr_remove_client_data(rax* topic_tree, rax* client_tree, uint64_t client);
 
+int mr_make_BEVBVBI(uint64_t u64, uint8_t *u8v, size_t u8vlen, int numbits);
+int mr_extract_BEVBVBI(uint8_t *u8v, size_t u8vlen, int numbits, uint64_t *pu64);
+
 #endif // MR_RAX_H
