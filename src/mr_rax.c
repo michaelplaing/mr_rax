@@ -13,14 +13,8 @@
 #include "rax_internal.h"
 #include "mr_rax_internal.h"
 
-// Make a normal Big Endian Variable Byte Integer (7 bits - u8v should be at least 10 bytes)
-static int mr_make_BEVBI(uint64_t u64, uint8_t *u8v) {
-    return mr_make_BEVBVBI(u64, u8v, 10, 7);
-}
-
 // Make a Big Endian Variable Bit Variable Byte Integer
 // u8vlen should be at least ((64 + numbits - 1) / numbits) bytes
-
 int mr_make_BEVBVBI(uint64_t u64, uint8_t *u8v, size_t u8vlen, int numbits) {
     if (u64 == 0) {
         *u8v = '\0';
@@ -34,35 +28,52 @@ int mr_make_BEVBVBI(uint64_t u64, uint8_t *u8v, size_t u8vlen, int numbits) {
     for (int i = 0; i < u8vlen; i++) {
         u8v[len] = u64 >> (numbits * (u8vlen - 1 - i)) & mask;
 
-        if (f) u8v[len++] |= 0x80;
+        if (f) len++;
         else if (u8v[len]) {
             f = true;
-            len++;
+            u8v[len++] |= (0xff << (numbits + 1)); // encoding indicator in 1st byte
         }
     }
 
     return len;
 }
 
+// Make a normal Big Endian Variable Byte Integer (7 bits - u8v should be at least 10 bytes)
+static int mr_make_BEVBI(uint64_t u64, uint8_t *u8v) {
+    return mr_make_BEVBVBI(u64, u8v, 10, 7);
+}
+
 // Extract a Big Endian Variable Bit Variable Byte Integer
-int mr_extract_BEVBVBI(uint8_t *u8v, size_t u8vlen, int numbits, uint64_t *pu64) {
+int mr_extract_BEVBVBI(uint8_t *u8v, size_t u8vlen, uint64_t *pu64) {
     uint8_t *pu8 = u8v;
-    if (*pu8 & 0x80) return 0; // fail: byte[0] has a continuation bit
+    int numbits;
+    for (numbits = 7; *pu8 & (1 << numbits); numbits--) if (numbits == 0) return 0;
     uint8_t mask = 0xff >> (8 - numbits);
-    uint64_t u64 = *pu8++;
-
-    for (int i = 1; i < u8vlen; pu8++, i++){
-        if (!(*pu8 & 0x80)) return 0; // fail: byte[1+] missing the continuation bit
-        u64 = (u64 << numbits) + (*pu8 & mask);
-    }
-
+    uint64_t u64 = *pu8++ & mask;
+    for (int i = 1; i < u8vlen; pu8++, i++) u64 = (u64 << numbits) + (*pu8 & mask);
     *pu64 = u64;
     return u8vlen; // exactly u8vlen bytes consumed
 }
 
+// Extract a Big Endian Variable Bit Variable Byte Integer
+// int mr_extract_BEVBVBI(uint8_t *u8v, size_t u8vlen, int numbits, uint64_t *pu64) {
+//     uint8_t *pu8 = u8v;
+//     if (*pu8 & 0x80) return 0; // fail: byte[0] has a continuation bit
+//     uint8_t mask = 0xff >> (8 - numbits);
+//     uint64_t u64 = *pu8++;
+
+//     for (int i = 1; i < u8vlen; pu8++, i++){
+//         if (!(*pu8 & 0x80)) return 0; // fail: byte[1+] missing the continuation bit
+//         u64 = (u64 << numbits) + (*pu8 & mask);
+//     }
+
+//     *pu64 = u64;
+//     return u8vlen; // exactly u8vlen bytes consumed
+// }
+
 // Extract a normal Big Endian Variable Byte Integer (7 bits)
 static int mr_extract_BEVBI(uint8_t *u8v, size_t u8vlen, uint64_t *pu64) {
-    return mr_extract_BEVBVBI(u8v, u8vlen, 7, pu64);
+    return mr_extract_BEVBVBI(u8v, u8vlen, pu64);
 }
 
 int mr_next_client(raxIterator* piter, uint64_t* pu64) {
@@ -192,7 +203,7 @@ int mr_insert_subscription(rax* topic_tree, rax* client_tree, const char* subtop
     // invert
     uint8_t topic3[clen + 1 + 4 + stlen]; // <Client ID><Client Mark>"subs"<Subscribe Topic>
     memcpy(topic3, clientv, clen);
-    memcpy(topic3 + clen, &client_suffix, 1);
+    memcpy(topic3 + clen, &client_mark, 1);
     raxTryInsert(client_tree, topic3, clen + 1, NULL, NULL);
     memcpy(topic3 + clen + 1, "subs", 4);
     raxTryInsert(client_tree, topic3, clen + 1 + 4, NULL, NULL);
@@ -279,7 +290,7 @@ static int mr_remove_subscription_client_tree(rax* client_tree, const char* subt
     raxStart(&iter, client_tree);
     uint8_t inversion[clen + 4 + stlen];
     memcpy(inversion, clientv, clen);
-    memcpy(inversion + clen, &client_suffix, 1);
+    memcpy(inversion + clen, &client_mark, 1);
     memcpy(inversion + 1 + clen, "subs", 4);
     memcpy(inversion + 1 + clen + 4, subtopic, stlen);
 
@@ -313,7 +324,7 @@ int mr_remove_client_subscriptions(rax* topic_tree, rax* client_tree, const uint
 
     uint8_t inversion[clen + 1 + 4];
     memcpy(inversion, clientv, clen);
-    memcpy(inversion + clen, &client_suffix, 1);
+    memcpy(inversion + clen, &client_mark, 1);
     memcpy(inversion + 1 + clen, "subs", 4);
     raxSeekSubtree(&iter, inversion, clen + 1 + 4);
     raxNext(&iter); // skip 1st key
@@ -482,7 +493,7 @@ int mr_upsert_client_topic_alias(
 
     // common
     memcpy(tba, clientv, clen);
-    memcpy(tba + clen, &client_suffix, 1);
+    memcpy(tba + clen, &client_mark, 1);
     raxTryInsert(client_tree, tba, clen + 1, NULL, NULL);
     memcpy(tba + clen + 1, "aliases", 7);
     raxTryInsert(client_tree, tba, clen + 1 + 7, NULL, NULL);
@@ -565,7 +576,7 @@ int mr_remove_client_topic_aliases(rax* client_tree, const uint64_t client) {
     size_t clen = mr_make_BEVBI(client, clientv);
     uint8_t aliases[clen + 1 + 7];
     memcpy(aliases, clientv, clen);
-    memcpy(aliases + clen, &client_suffix, 1);
+    memcpy(aliases + clen, &client_mark, 1);
     memcpy(aliases + clen + 1, "aliases", 7);
     raxRemoveSubtree(client_tree, aliases, clen + 1 + 7);
     return 0;
@@ -577,7 +588,7 @@ int mr_get_alias_by_topic(rax* client_tree, const uint64_t client, const bool is
     size_t clen = mr_make_BEVBI(client, clientv);
     uint8_t abt[clen + 17 + ptlen]; // <Client ID>"aliasesclientabt"<pubtopic>
     memcpy(abt, clientv, clen);
-    memcpy(abt + clen, &client_suffix, 1);
+    memcpy(abt + clen, &client_mark, 1);
     memcpy(abt + clen + 1, "aliases", 7);
     char* source = isclient ? "client" : "server";
     memcpy(abt + clen + 1 + 7, source, 6);
@@ -603,7 +614,7 @@ int mr_get_topic_by_alias(rax* client_tree, const uint64_t client, const bool is
     size_t clen = mr_make_BEVBI(client, clientv);
     uint8_t tba[clen + 17 + 1]; // <Client ID>"aliasesclienttba"<alias>
     memcpy(tba, clientv, clen);
-    memcpy(tba + clen, &client_suffix, 1);
+    memcpy(tba + clen, &client_mark, 1);
     memcpy(tba + clen + 1, "aliases", 7);
     char* source = isclient ? "client" : "server";
     memcpy(tba + clen + 1 + 7, source, 6);
