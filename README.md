@@ -43,7 +43,7 @@ Then for normal subscription clients:
 - ``0xff`` as the Client Mark (invalid UTF-8); and
 - The VBI-encoded Client ID.
 
-Note: Variable Byte Integer (VBI) is an encoding of 7 bits per byte with a continuation bit in the high order spot. For this project, the bytes of the encoded integer are in big endian (network) order to maximize prefix compression – normally VBI is little endian. Also this project uses 64 bit integer Client IDs so 10 bytes are sufficient for any Client ID encoding.
+Note: The self-describing Variable Byte Integer (VBI) encoding used here employs 7 bits per byte in big endian (network) order to maximize prefix compression. This project has 64 bit integer Client IDs so 10 bytes are sufficient for encoding; the actual length will vary from 1 to 10. Since the high order bit of each byte is always 0, VBI-encoded integer bytes cannot be confused with the Client Mark or the Shared Mark.
 
 And for shared subscription clients:
 - ``0xef`` as the Shared Mark (invalid UTF-8);
@@ -91,7 +91,7 @@ Of course a client can have any number of subscriptions and vice versa, e.g. top
 
 Client IDs can range up to 2**64, encoding up to 10 bytes. This one encodes to 2 bytes: topic ``foo/#``; Client ID ``128``:
 
-``@foo#<0xff><0x0180>``
+``@foo#<0xff><0x0100>``
 
 And subscribe to a ``$SYS`` topic as well, e.g. topic ``$SYS/foo/#``; Client ID ``1``:
 
@@ -175,7 +175,7 @@ The additions to Rax include ``raxShowHexKey()``. When the 12 subscriptions abov
         `—(+) {"bar"}->{[0xff]}->{[0x07]}->{[]}
         `—(f) "oo"->{[#b]}
                      `—(#) {[0xff]}->{[0x0108]}
-                                      `—(.) {[0x80]}->{[]}
+                                      `—(.) {[0x00]}->{[]}
                                       `—(.) {[]}
                      `—(b) "ar"->{[0x1ffeff]}
                                   `—(.) {[0xff]}->{[0x03]}->{[]}
@@ -189,7 +189,7 @@ The additions to Rax include ``raxShowHexKey()``. When the 12 subscriptions abov
                                          `—(.) {[]}
         `—(.) "0x8592"->{"0xe590a7"}->{[0xff]}->{[0x08]}->{[]}
 ```
-Note that ``Client ID 0x0180`` for topic ``foo/#`` is spread across nodes due to prefix compression.
+Note that ``Client ID 0x0100`` for topic ``foo/#`` is spread across nodes due to prefix compression.
 
 More explanation of the structure is in the Rax README and ``rax.c``.
 
@@ -250,7 +250,8 @@ Topic aliases are in 2 distinct sets: ones set by the client and those set by th
 Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` (set by the client) plus outgoing alias ``8`` for Client ID ``1`` topic ``foo/bar`` (set by the server) then running ``raxShowHexKey()`` yields the following depiction of our 9 clients, their 12 subscriptions and the 2 aliases in the client tree:
 ```
 [0x0102030405060708]
- `—(.) [0x0080]
+ `—(.) [0x00ff]
+        `—(.) [0xff]->{"subs"}->{"foo/#"}->{[]}
         `—(.) {[as]}
                `—(a) "liases"->{[cs]}
                                 `—(c) "lient"->{[at]}
@@ -264,15 +265,14 @@ Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` (set by 
                              `—(f) "oo/"->[#b]
                                            `—(#) {[]}
                                            `—(b) "ar"->{[]}
-        `—(.) [0x00]->{"subs"}->{"foo/#"}->{[]}
- `—(.) [0x00]->{"subs"}->{"foo/bar"}->{[]}
- `—(.) [0x00]->{"subs"}->{"foo/bar/"}->{[]}
- `—(.) [0x00]->{"subs"}->{"$share/baz/foo/bar"}->{[]}
- `—(.) [0x00]->{"subs"}->{"$share/baz/foo/bar"}->{[]}
- `—(.) [0x00]->{"subs"}->{"$share/bazzle/foo/bar"}->{[]}
- `—(.) [0x00]->{"subs"}->{"+/bar"}->{[]}
- `—(.) [0x00]->{"subs"}->{[0x66e9]}
+ `—(.) [0xff]->{"subs"}->{"foo/bar"}->{[]}
+ `—(.) [0xff]->{"subs"}->{"foo/bar/"}->{[]}
+ `—(.) [0xff]->{"subs"}->{"$share/baz/foo/bar"}->{[]}
+ `—(.) [0xff]->{"subs"}->{"$share/baz/foo/bar"}->{[]}
+ `—(.) [0xff]->{"subs"}->{"$share/bazzle/foo/bar"}->{[]}
+ `—(.) [0xff]->{"subs"}->{"+/bar"}->{[]}
+ `—(.) [0xff]->{"subs"}->{[0x66e9]}
                           `—(f) "oo/#"->{[]}
                           `—(.) "0x85922fe590a7"->{[]}
 ```
-There is a null byte suffix on the VBI-encoded Client IDs which is useful for distinguishing them, e.g. when removing an entire client subtree. A Client ID of 0 is invalid, which facilitates this approach.
+There is a Client Mark (``0xff``) suffix on the VBI-encoded Client IDs which distinguishing them when iterating, e.g. when removing an entire client subtree.

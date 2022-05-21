@@ -13,24 +13,26 @@
 #include "rax_internal.h"
 #include "mr_rax_internal.h"
 
-// Make a Big Endian Variable Bit Variable Byte Integer
-// u8vlen should be at least ((64 + numbits - 1) / numbits) bytes
+// Make an encoded Big Endian Variable Bit Variable Byte Integer
+// numbits is in the range 1..7 : the number of bits used in each byte of the result
+// the value of numbits is encoded in the 1st byte to enable decoding
+// u8vlen is at least ((64 + numbits - 1) / numbits) bytes
 int mr_make_BEVBVBI(uint64_t u64, uint8_t *u8v, size_t u8vlen, int numbits) {
     if (u64 == 0) {
         *u8v = '\0';
         return 1;
     }
 
-    uint8_t mask = 0xff >> (8 - numbits);
+    uint8_t mask = 0xff >> (8 - numbits); // mask off extra left side bits
     int len = 0;
-    bool f = false;
+    bool found = false; // look for 1st group of non-zero bits
 
     for (int i = 0; i < u8vlen; i++) {
-        u8v[len] = u64 >> (numbits * (u8vlen - 1 - i)) & mask;
+        u8v[len] = u64 >> (numbits * (u8vlen - 1 - i)) & mask; // proceed from high order bits
 
-        if (f) len++;
+        if (found) len++;
         else if (u8v[len]) {
-            f = true;
+            found = true;
             u8v[len++] |= (0xff << (numbits + 1)); // encoding indicator in 1st byte
         }
     }
@@ -38,40 +40,24 @@ int mr_make_BEVBVBI(uint64_t u64, uint8_t *u8v, size_t u8vlen, int numbits) {
     return len;
 }
 
-// Make a normal Big Endian Variable Byte Integer (7 bits - u8v should be at least 10 bytes)
+// Make a normal Big Endian Variable Byte Integer (numbits == 7; u8v >= 10 bytes)
 static int mr_make_BEVBI(uint64_t u64, uint8_t *u8v) {
     return mr_make_BEVBVBI(u64, u8v, 10, 7);
 }
 
-// Extract a Big Endian Variable Bit Variable Byte Integer
+// Extract an encoded Big Endian Variable Bit Variable Byte Integer
 int mr_extract_BEVBVBI(uint8_t *u8v, size_t u8vlen, uint64_t *pu64) {
     uint8_t *pu8 = u8v;
-    int numbits;
+    int numbits; // decode from 1st byte: the offset of the 1st 0 bit from the left
     for (numbits = 7; *pu8 & (1 << numbits); numbits--) if (numbits == 0) return 0;
-    uint8_t mask = 0xff >> (8 - numbits);
+    uint8_t mask = 0xff >> (8 - numbits); // mask off extraneous high-order bits
     uint64_t u64 = *pu8++ & mask;
     for (int i = 1; i < u8vlen; pu8++, i++) u64 = (u64 << numbits) + (*pu8 & mask);
     *pu64 = u64;
     return u8vlen; // exactly u8vlen bytes consumed
 }
 
-// Extract a Big Endian Variable Bit Variable Byte Integer
-// int mr_extract_BEVBVBI(uint8_t *u8v, size_t u8vlen, int numbits, uint64_t *pu64) {
-//     uint8_t *pu8 = u8v;
-//     if (*pu8 & 0x80) return 0; // fail: byte[0] has a continuation bit
-//     uint8_t mask = 0xff >> (8 - numbits);
-//     uint64_t u64 = *pu8++;
-
-//     for (int i = 1; i < u8vlen; pu8++, i++){
-//         if (!(*pu8 & 0x80)) return 0; // fail: byte[1+] missing the continuation bit
-//         u64 = (u64 << numbits) + (*pu8 & mask);
-//     }
-
-//     *pu64 = u64;
-//     return u8vlen; // exactly u8vlen bytes consumed
-// }
-
-// Extract a normal Big Endian Variable Byte Integer (7 bits)
+// Extract a normal Big Endian Variable Byte Integer (numbits == 7; u8v >= 10 bytes)
 static int mr_extract_BEVBI(uint8_t *u8v, size_t u8vlen, uint64_t *pu64) {
     return mr_extract_BEVBVBI(u8v, u8vlen, pu64);
 }
