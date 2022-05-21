@@ -40,9 +40,9 @@ int mr_make_BEVBVBI(uint64_t u64, uint8_t *u8v, size_t u8vlen, int numbits) {
     return len;
 }
 
-// Make a normal Big Endian Variable Byte Integer (numbits == 7; u8v >= 10 bytes)
+// Make a Big Endian Variable Byte Integer using the default NUMBITS & NUMBYTES
 static int mr_make_BEVBI(uint64_t u64, uint8_t *u8v) {
-    return mr_make_BEVBVBI(u64, u8v, 10, 7);
+    return mr_make_BEVBVBI(u64, u8v, NUMBYTES, NUMBITS);
 }
 
 // Extract an encoded Big Endian Variable Bit Variable Byte Integer
@@ -57,7 +57,7 @@ int mr_extract_BEVBVBI(uint8_t *u8v, size_t u8vlen, uint64_t *pu64) {
     return u8vlen; // exactly u8vlen bytes consumed
 }
 
-// Extract a normal Big Endian Variable Byte Integer (numbits == 7; u8v >= 10 bytes)
+// Extract a Big Endian Variable Byte Integer automatically decoding numbytes
 static int mr_extract_BEVBI(uint8_t *u8v, size_t u8vlen, uint64_t *pu64) {
     return mr_extract_BEVBVBI(u8v, u8vlen, pu64);
 }
@@ -156,7 +156,7 @@ int mr_insert_subscription(rax* topic_tree, rax* client_tree, const char* subtop
     size_t tklen = strlen(topic_key);
 
     // get the client bytes in network order (big endian) as a Variable Byte Integer (VBI)
-    uint8_t clientv[10]; // 64 bits @ 7 bits per byte => 10 bytes max needed
+    uint8_t clientv[NUMBYTES]; // 64 bits @ 7 bits per byte => 10 bytes max needed
     size_t clen = mr_make_BEVBI(client, clientv);
 
     // printf("  client: %llu; clen: %zu; clientv:", client, clen);
@@ -292,7 +292,7 @@ static int mr_remove_subscription_client_tree(rax* client_tree, const char* subt
 
 int mr_remove_subscription(rax* topic_tree, rax* client_tree, const char* subtopic, const uint64_t client) {
     // get the client bytes in network order (big endian) as a Variable Byte Integer (VBI)
-    uint8_t clientv[10]; // 64 bits @ 7 bits per byte => 10 bytes max needed
+    uint8_t clientv[NUMBYTES]; // 64 bits @ 7 bits per byte => 10 bytes max needed
     size_t clen = mr_make_BEVBI(client, clientv);
     mr_remove_subscription_topic_tree(topic_tree, subtopic, clientv, clen);
     mr_remove_subscription_client_tree(client_tree, subtopic, clientv, clen);
@@ -305,7 +305,7 @@ int mr_remove_client_subscriptions(rax* topic_tree, rax* client_tree, const uint
     raxStart(&iter, client_tree);
 
     // get the client bytes in network order (big endian) as a Variable Byte Integer (VBI)
-    uint8_t clientv[10]; // 64 bits @ 7 bits per byte => 10 bytes max needed
+    uint8_t clientv[NUMBYTES]; // 64 bits @ 7 bits per byte => 10 bytes max needed
     size_t clen = mr_make_BEVBI(client, clientv);
 
     uint8_t inversion[clen + 1 + 4];
@@ -458,7 +458,7 @@ static int mr_remove_client_topic_alias(
     rax* client_tree, const uint64_t client, const bool isclient, const char* pubtopic, const uint8_t alias
 ) {
     size_t ptlen = strlen(pubtopic);
-    uint8_t clientv[10];
+    uint8_t clientv[NUMBYTES];
     size_t clen = mr_make_BEVBI(client, clientv);
     char* source = isclient ? "client" : "server";
     uint8_t tba[clen + 1 + 16 + 1 + ptlen]; // <Client ID><Client Mark>"aliasesclienttba"<alias><pubtopic>
@@ -470,7 +470,7 @@ int mr_upsert_client_topic_alias(
     rax* client_tree, const uint64_t client, const bool isclient, const char* pubtopic, const uint8_t alias
 ) {
     size_t ptlen = strlen(pubtopic);
-    uint8_t clientv[10] = {0};
+    uint8_t clientv[NUMBYTES] = {0};
     size_t clen = mr_make_BEVBI(client, clientv);
     // printf("client: %llu; clen: %zu; clientv[0]: %02x\n", client, clen, clientv[0]);
     char* source = isclient ? "client" : "server";
@@ -558,7 +558,7 @@ int mr_upsert_client_topic_alias(
 }
 
 int mr_remove_client_topic_aliases(rax* client_tree, const uint64_t client) {
-    uint8_t clientv[10] = {0};
+    uint8_t clientv[NUMBYTES] = {0};
     size_t clen = mr_make_BEVBI(client, clientv);
     uint8_t aliases[clen + 1 + 7];
     memcpy(aliases, clientv, clen);
@@ -570,7 +570,7 @@ int mr_remove_client_topic_aliases(rax* client_tree, const uint64_t client) {
 
 int mr_get_alias_by_topic(rax* client_tree, const uint64_t client, const bool isclient, const char* pubtopic, uint8_t* palias) {
     size_t ptlen = strlen(pubtopic);
-    uint8_t clientv[10] = {0};
+    uint8_t clientv[NUMBYTES] = {0};
     size_t clen = mr_make_BEVBI(client, clientv);
     uint8_t abt[clen + 17 + ptlen]; // <Client ID>"aliasesclientabt"<pubtopic>
     memcpy(abt, clientv, clen);
@@ -596,7 +596,7 @@ int mr_get_alias_by_topic(rax* client_tree, const uint64_t client, const bool is
 }
 
 int mr_get_topic_by_alias(rax* client_tree, const uint64_t client, const bool isclient, const uint8_t alias, char* pubtopic) {
-    uint8_t clientv[10] = {0};
+    uint8_t clientv[NUMBYTES] = {0};
     size_t clen = mr_make_BEVBI(client, clientv);
     uint8_t tba[clen + 17 + 1]; // <Client ID>"aliasesclienttba"<alias>
     memcpy(tba, clientv, clen);
@@ -624,7 +624,7 @@ int mr_get_topic_by_alias(rax* client_tree, const uint64_t client, const bool is
 
 int mr_remove_client_data(rax* topic_tree, rax* client_tree, uint64_t client) {
     mr_remove_client_subscriptions(topic_tree, client_tree, client);
-    uint8_t clientv[10] = {0};
+    uint8_t clientv[NUMBYTES] = {0};
     size_t clen = mr_make_BEVBI(client, clientv);
     // printf("mr_remove_client_data:: clientv[0]: %hhx; clen: %zu\n", clientv[0], clen);
     raxRemoveSubtree(client_tree, clientv, clen);

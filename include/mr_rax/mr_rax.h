@@ -7,6 +7,8 @@
 #define MAX_TOKENS 32
 #define MAX_TOKEN_LEN 64
 #define MAX_TOPIC_LEN 256
+#define NUMBITS 7
+#define NUMBYTES ((64 + NUMBITS - 1) / NUMBITS)
 
 // invalid utf8 chars used to separate clients & shared subs from topics
 static uint8_t shared_mark = 0xfe;

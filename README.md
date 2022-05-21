@@ -276,3 +276,38 @@ Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` (set by 
                          `—(.)"0x85922fe590a7"->{[]}
 ```
 There is a Client Mark (``0xff``) suffix on the VBI-encoded Client IDs to distinguish them.
+
+Interestingly (to me at least) the Variable Byte Integer encoding & decoding algorithms are quite flexible, allowing one to pick any number of bits per byte from 1 to 7. Here is the client tree shown with ``numbits`` set to 1, i.e. a binary tree. ``numbits`` is encoded into the 1st byte of each integer, hence when it is 1, the 1st byte is always ``0xfd``:
+
+```
+[0xfd]->[0x0001ff]
+       `—(.)[0x0001ff]
+             `—(.)[0x00ff]
+                   `—(.)[0x00ff]
+                         `—(.)"0x000000ff"->{"subs"}->{"foo/#"}->{[]}
+                         `—(.){"subs"}->{[0x66e9]}
+                                         `—(f)"oo/#"->{[]}
+                                         `—(.)"0x85922fe590a7"->{[]}
+                   `—(.){"subs"}->{"$share/baz/foo/bar"}->{[]}
+             `—(.)[0xff]->{"subs"}->{"$share/baz/foo/bar"}->{[]}
+             `—(.){"subs"}->{"foo/bar"}->{[]}
+       `—(.)[0x0001ff]
+             `—(.)[0xff]->{"subs"}->{"$share/bazzle/foo/bar"}->{[]}
+             `—(.)[0xff]->{"subs"}->{"+/bar"}->{[]}
+             `—(.){"subs"}->{"foo/bar/"}->{[]}
+       `—(.){[as]}
+             `—(a)"liases"->{[cs]}
+                             `—(c)"lient"->{[at]}
+                                            `—(a)"bt"->{"baz/bam"}->{[0x08]}->{[]}
+                                            `—(t)"ba"->{[0x08]}->{"baz/bam"}->{[]}
+                             `—(s)"erver"->{[at]}
+                                            `—(a)"bt"->{"foo/bar"}->{[0x08]}->{[]}
+                                            `—(t)"ba"->{[0x08]}->{"foo/bar"}->{[]}
+             `—(s)"ubs"->{[$f]}
+                          `—($)"SYS/foo/#"->{[]}
+                          `—(f)"oo/"->[#b]
+                                       `—(#){[]}
+                                       `—(b)"ar"->{[]}
+```
+
+Notice how the depth of the tree increases and the spans of nodes decrease. One can use this effect to dynamically optimize for search and iteration by altering ``numbits`` appropriately to achieve a tree that is nether too tall and skinny nor too wide and bushy. Since ``numbits`` is encoded in the 1st byte of each integer, one can mix integers encoded differently without having to backtrack and convert.
