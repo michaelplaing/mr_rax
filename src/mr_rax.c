@@ -25,15 +25,15 @@ int mr_make_BEVBVBI(uint64_t u64, uint8_t *u8v, size_t u8vlen, int numbits) {
 
     uint8_t mask = 0xff >> (8 - numbits); // mask off extra left side bits
     int len = 0;
-    bool found = false; // look for 1st group of non-zero bits
+    bool found = false; // look for 1st set numbits long of non-zero bits
 
     for (int i = 0; i < u8vlen; i++) {
         u8v[len] = u64 >> (numbits * (u8vlen - 1 - i)) & mask; // proceed from high order bits
 
-        if (found) len++;
-        else if (u8v[len]) {
+        if (found) len++; // non-zero bits were found previously so increment len & loop
+        else if (u8v[len]) { // test for non-zero
             found = true;
-            u8v[len++] |= (0xff << (numbits + 1)); // encoding indicator in 1st byte
+            u8v[len++] |= (0xff << (numbits + 1)); // encode numbits in high order bits
         }
     }
 
@@ -48,7 +48,7 @@ static int mr_make_BEVBI(uint64_t u64, uint8_t *u8v) {
 // Extract an encoded Big Endian Variable Bit Variable Byte Integer
 int mr_extract_BEVBVBI(uint8_t *u8v, size_t u8vlen, uint64_t *pu64) {
     uint8_t *pu8 = u8v;
-    int numbits; // decode from 1st byte: the offset of the 1st 0 bit from the left
+    int numbits; // decode from byte[0]: the location of the 1st 0 bit from bit 7 descending
     for (numbits = 7; *pu8 & (1 << numbits); numbits--) if (numbits == 0) return 0;
     uint8_t mask = 0xff >> (8 - numbits); // mask off extraneous high-order bits
     uint64_t u64 = *pu8++ & mask;
@@ -57,7 +57,7 @@ int mr_extract_BEVBVBI(uint8_t *u8v, size_t u8vlen, uint64_t *pu64) {
     return u8vlen; // exactly u8vlen bytes consumed
 }
 
-// Extract a Big Endian Variable Byte Integer automatically decoding numbytes
+// Extract a Big Endian Variable Byte Integer automatically decoding numbits
 static int mr_extract_BEVBI(uint8_t *u8v, size_t u8vlen, uint64_t *pu64) {
     return mr_extract_BEVBVBI(u8v, u8vlen, pu64);
 }
@@ -144,7 +144,6 @@ static int mr_insert_topic_tree(rax* topic_tree, const char* topic) {
 }
 
 int mr_insert_subscription(rax* topic_tree, rax* client_tree, const char* subtopic, const uint64_t client) {
-    // printf("mr_insert_subscription:: subtopic: %s; client: %llu\n", subtopic, client);
     size_t stlen = strlen(subtopic);
     char topic[stlen + 3];
     char share[stlen + 1];
@@ -156,12 +155,8 @@ int mr_insert_subscription(rax* topic_tree, rax* client_tree, const char* subtop
     size_t tklen = strlen(topic_key);
 
     // get the client bytes in network order (big endian) as a Variable Byte Integer (VBI)
-    uint8_t clientv[NUMBYTES]; // 64 bits @ 7 bits per byte => 10 bytes max needed
+    uint8_t clientv[NUMBYTES];
     size_t clen = mr_make_BEVBI(client, clientv);
-
-    // printf("  client: %llu; clen: %zu; clientv:", client, clen);
-    // for (int i = 0; i < clen; i++) printf(" %02x", clientv[i]);
-    // puts("");
 
     mr_insert_topic_tree(topic_tree, topic);
 
@@ -292,7 +287,7 @@ static int mr_remove_subscription_client_tree(rax* client_tree, const char* subt
 
 int mr_remove_subscription(rax* topic_tree, rax* client_tree, const char* subtopic, const uint64_t client) {
     // get the client bytes in network order (big endian) as a Variable Byte Integer (VBI)
-    uint8_t clientv[NUMBYTES]; // 64 bits @ 7 bits per byte => 10 bytes max needed
+    uint8_t clientv[NUMBYTES];
     size_t clen = mr_make_BEVBI(client, clientv);
     mr_remove_subscription_topic_tree(topic_tree, subtopic, clientv, clen);
     mr_remove_subscription_client_tree(client_tree, subtopic, clientv, clen);
@@ -305,7 +300,7 @@ int mr_remove_client_subscriptions(rax* topic_tree, rax* client_tree, const uint
     raxStart(&iter, client_tree);
 
     // get the client bytes in network order (big endian) as a Variable Byte Integer (VBI)
-    uint8_t clientv[NUMBYTES]; // 64 bits @ 7 bits per byte => 10 bytes max needed
+    uint8_t clientv[NUMBYTES];
     size_t clen = mr_make_BEVBI(client, clientv);
 
     uint8_t inversion[clen + 1 + 4];
@@ -334,15 +329,12 @@ int mr_remove_client_subscriptions(rax* topic_tree, rax* client_tree, const uint
 }
 
 static int mr_get_topic_clients(raxIterator* iter, rax* srax, uint8_t* key, size_t key_len) {
-    // printf("mr_get_topic_clients:: key: '%.*s'; key_len: %zu\n", (int)key_len, key, key_len);
-
     // get regular subs
     key[key_len] = client_mark;
     raxSeekSubtreeRelative(iter, key, key_len + 1);
 
     if (raxNext(iter)) { // subtree exists? Skip 1st key if it does
         while(raxNext(iter)) {
-            // printf("mr_get_topic_clients (regular):: iter->key: '%.*s'\n", (int)iter->key_len, iter->key);
             size_t clen = iter->key_len - (key_len + 1);
             raxTryInsert(srax, iter->key + key_len + 1, clen, NULL, NULL);
         }
@@ -356,18 +348,13 @@ static int mr_get_topic_clients(raxIterator* iter, rax* srax, uint8_t* key, size
     if (raxNext(iter)) { // same
         raxIterator* piter2 = raxIteratorDup(iter);
 
-        while(raxNext(iter)) { // randomly pick one client per share
-            // printf("mr_get_topic_clients (shared):: iter->key: '%.*s'\n", (int)iter->key_len, iter->key);
-            if (!memchr(iter->key, 0xfe, iter->key_len) || iter->key[iter->key_len - 1] != 0xff) continue; // only keys w/client marks
-            // printf("mr_get_topic_clients (shared & selected):: iter->key: '%.*s'\n", (int)iter->key_len, iter->key);
+        while(raxNext(iter)) { // randomly pick one client per share - only keys w/client marks
+            if (!memchr(iter->key, 0xfe, iter->key_len) || iter->key[iter->key_len - 1] != 0xff) continue;
             raxSeekSubtreeRelative(piter2, iter->key, iter->key_len);
 
             if (raxNext(piter2)) { // same - should succeed tho
                 size_t count = 0;
-                while (raxNext(piter2)) {
-                    // printf("mr_get_topic_clients (counted):: piter2->key: '%.*s'\n", (int)piter2->key_len, piter2->key);
-                    count++;
-                }
+                while (raxNext(piter2)) count++;
 
                 if (count) {
                     int choice = arc4random() % count;
@@ -423,9 +410,7 @@ static int mr_probe_subscriptions(
                 mr_get_topic_clients(iter, srax, (uint8_t*)test_key, strlen(topic));
             }
         }
-        else {
-            break; // no more possible matches
-        }
+        else break; // no more possible matches
 
         level++;
     }
@@ -472,7 +457,6 @@ int mr_upsert_client_topic_alias(
     size_t ptlen = strlen(pubtopic);
     uint8_t clientv[NUMBYTES] = {0};
     size_t clen = mr_make_BEVBI(client, clientv);
-    // printf("client: %llu; clen: %zu; clientv[0]: %02x\n", client, clen, clientv[0]);
     char* source = isclient ? "client" : "server";
     uint8_t tba[clen + 17 + 1 + ptlen]; // <Client ID><Client Mark>"aliasesclienttba"<alias><pubtopic>
     uint8_t abt[clen + 17 + ptlen + 1]; // <Client ID><Client Mark>"aliasesserverabt"<pubtopic><alias>
@@ -489,58 +473,35 @@ int mr_upsert_client_topic_alias(
     memcpy(abt, tba, clen + 1 + 7 + 6);
 
     memcpy(tba + clen + 1 + 7 + 6, "tba", 3);
-    // printf("tba:: %d %.*s\n", tba[0], 17, tba + 1);
     raxTryInsert(client_tree, tba, clen + 17, NULL, NULL);
     memcpy(abt + clen + 1 + 7 + 6, "abt", 3);
-    // printf("abt:: %d %.*s\n", abt[0], 17, abt + 1);
     raxTryInsert(client_tree, abt, clen + 17, NULL, NULL);
 
-
     memcpy(tba + clen + 17, &alias, 1);
-    // printf("tba:: %d %.*s %d\n", tba[0], 17, tba + 1, tba[clen + 17]);
     raxTryInsert(client_tree, tba, clen + 17 + 1, NULL, NULL);
     memcpy(abt + clen + 17, pubtopic, ptlen);
-    // printf("abt:: %d %.*s %.*s\n", abt[0], 17, abt + 1, (int)ptlen, abt + clen + 17);
     raxTryInsert(client_tree, abt, clen + 17 + ptlen, NULL, NULL);
-
-    // printf("=> Insert of pubtopic: '%s' and alias: %d\n", pubtopic, alias);
-    // raxShowHex(client_tree); raxShow(client_tree); printf("eles: %llu; nodes: %llu\n\n", client_tree->numele, client_tree->numnodes);
 
     // inversion pair
     memcpy(tba + clen + 17 + 1, pubtopic, ptlen);
-    // printf("tba:: %d %.*s %d %.*s\n", tba[0], 17, tba + 1, tba[clen + 17], (int)ptlen, tba + clen + 17 + 1);
     memcpy(abt + clen + 17 + ptlen, &alias, 1);
-    // printf("abt:: %d %.*s %.*s %d\n", abt[0], 17, abt + 1, (int)ptlen, abt + clen + 17, abt[clen + 17 + ptlen]);
 
     raxIterator iter;
     raxStart(&iter, client_tree);
 
     if (raxSeekSubtree(&iter, tba, clen + 17 + 1) && raxNext(&iter) && raxNext(&iter)) {
         size_t ptlen2 = iter.key_len - (clen + 17 + 1);
-        // printf("Seek tba:: %d '%.*s' %d '%.*s'\n", iter.key[0], 17, iter.key + 1, iter.key[clen + 17], (int)ptlen2, iter.key + clen + 17 + 1);
         uint8_t abt2[clen + 17 + ptlen2 + 1]; // <Client ID>"aliasesclientabt"<pubtopic><alias>
         memcpy(abt2, abt, clen + 17);
         memcpy(abt2 + clen + 17, iter.key + clen + 17 + 1, ptlen2);
-        // printf("Seek abt2:: %d '%.*s' '%.*s'\n", abt2[0], 17, abt2 + 1, (int)ptlen2, abt2 + clen + 17);
-        // raxFreeSubtree(client_tree, abt2, clen + 17 + ptlen2);
         raxRemoveSubtree(client_tree, abt2, clen + 17 + ptlen2);
-
-        // printf("=> raxRemoveSubtree abt2\n");
-        // raxShowHex(client_tree); raxShow(client_tree); printf("eles: %llu; nodes: %llu\n\n", client_tree->numele, client_tree->numnodes);
-
         raxRemove(client_tree, iter.key, iter.key_len, NULL);
-
-        // printf("=> raxRemove tba\n");
-        // raxShowHex(client_tree); raxShow(client_tree); printf("eles: %llu; nodes: %llu\n\n", client_tree->numele, client_tree->numnodes);
     }
 
     if (raxSeekSubtree(&iter, abt, clen + 17 + ptlen) && raxNext(&iter) && raxNext(&iter)) {
         uint8_t tba2[clen + 17 + 1 + ptlen]; // <Client ID>"aliasesclienttba"<alias><pubtopic>
-        // printf("Seek abt:: %d '%.*s' '%.*s' %d\n", iter.key[0], 17, iter.key + 1, (int)ptlen, iter.key + clen + 17, iter.key[clen + 17 + ptlen]);
         memcpy(tba2, tba, clen + 17);
         memcpy(tba2 + clen + 17, iter.key + clen + 17 + ptlen, 1);
-        // printf("Seek tba2:: %d '%.*s' %d\n", tba2[0], 17, tba2 + 1, tba2[clen + 17]);
-        // raxFreeSubtree(client_tree, tba2, clen + 17 + 1);
         raxRemoveSubtree(client_tree, tba2, clen + 17 + 1);
         raxRemove(client_tree, iter.key, iter.key_len, NULL);
     }
@@ -550,10 +511,6 @@ int mr_upsert_client_topic_alias(
     // insert inversion pair
     raxInsert(client_tree, tba, clen + 17 + 1 + ptlen, NULL, NULL);
     raxInsert(client_tree, abt, clen + 17 + ptlen + 1, NULL, NULL);
-
-    // printf("=> Insert of inversion pair\n");
-    // raxShowHex(client_tree); raxShow(client_tree); printf("eles: %llu; nodes: %llu\n\n", client_tree->numele, client_tree->numnodes);
-
     return 0;
 }
 
@@ -580,16 +537,13 @@ int mr_get_alias_by_topic(rax* client_tree, const uint64_t client, const bool is
     memcpy(abt + clen + 1 + 7, source, 6);
     memcpy(abt + clen + 1 + 7 + 6, "abt", 3);
     memcpy(abt + clen + 17, pubtopic, ptlen);
-    // printf("Seek abt:: %d '%.*s' '%.*s'\n", abt[0], 17, abt + 1, (int)ptlen, abt + clen + 17);
     raxIterator iter;
     raxStart(&iter, client_tree);
 
     if (raxSeek(&iter, "=", abt, clen + 17 + ptlen) && raxNext(&iter) && raxNext(&iter)) {
         *palias = iter.key[iter.key_len - 1];
     }
-    else {
-        *palias = 0;
-    }
+    else *palias = 0;
 
     raxStop(&iter);
     return 0;
@@ -626,7 +580,6 @@ int mr_remove_client_data(rax* topic_tree, rax* client_tree, uint64_t client) {
     mr_remove_client_subscriptions(topic_tree, client_tree, client);
     uint8_t clientv[NUMBYTES] = {0};
     size_t clen = mr_make_BEVBI(client, clientv);
-    // printf("mr_remove_client_data:: clientv[0]: %hhx; clen: %zu\n", clientv[0], clen);
     raxRemoveSubtree(client_tree, clientv, clen);
     return 0;
 }

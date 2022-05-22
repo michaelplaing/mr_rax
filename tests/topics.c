@@ -219,6 +219,35 @@ int topic_fun(void) {
     // size_t outlen = mr_extract_BEVBVBI(u8v, len, &out);
     // printf("mr_extract_BEVBVBI: outlen: %zu; out: %llu\n", outlen, out);
 
+    // rax* tree = raxNew();
+
+    // uint16_t u16;
+    // uint8_t u8v[2];
+    // for (int i = 0; i < 257; i++) {
+    //     u16 = i;
+    //     u8v[0] = u16 >> 8; u8v[1] = u16 & 0xff;
+    //     raxInsert(tree, u8v, 2, NULL, NULL);
+    // }
+    // raxShowHexKey(tree);
+
+    // raxInsert(tree, (uint8_t*)"c", 1, NULL, NULL);
+    // raxInsert(tree, (uint8_t*)"a", 1, NULL, NULL);
+    // raxInsert(tree, (uint8_t*)"b", 1, NULL, NULL);
+    // raxInsert(tree, (uint8_t*)"ba", 2, NULL, NULL);
+    // raxShow(tree);
+    // raxIterator iter;
+    // raxStart(&iter, tree);
+    // raxSeek(&iter, "^", NULL, 0);
+    // while (raxNext(&iter)) {
+    //     for(int j = 0; j < iter.key_len; j++) printf("%c", iter.key[j]);
+    //     puts("");
+    // }
+    // raxShow(tree);
+
+
+    // raxFree(tree);
+
+
 // end scratch
 
     return 0;

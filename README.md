@@ -277,7 +277,7 @@ Adding incoming topic alias ``8`` for Client ID ``1`` topic ``baz/bam`` (set by 
 ```
 There is a Client Mark (``0xff``) suffix on the VBI-encoded Client IDs to distinguish them.
 
-Interestingly (to me at least) the Variable Byte Integer encoding & decoding algorithms are quite flexible, allowing one to pick any number of bits per byte from 1 to 7. Here is the client tree shown with ``numbits`` set to 1, i.e. a binary tree. ``numbits`` is encoded into the 1st byte of each integer, hence when it is 1, the 1st byte is always ``0xfd``:
+Interestingly (to me at least) the Variable Byte Integer encoding & decoding algorithms are quite flexible, allowing one to pick any number of bits per byte from 1 to 7. Here is the client tree shown with ``numbits`` set to 1, i.e. a binary tree. ``numbits`` is encoded into the 1st byte of each integer, hence when it is 1, the 1st byte is always ``0xfd``, as leading zeros are suppresses. The remaining bytes of the encoded integer will contain either `0x00` or `0x01`:
 
 ```
 [0xfd]->[0x0001ff]
@@ -311,3 +311,5 @@ Interestingly (to me at least) the Variable Byte Integer encoding & decoding alg
 ```
 
 Notice how the depth of the tree increases and the spans of nodes decrease. One can use this effect to dynamically optimize for search and iteration by altering ``numbits`` appropriately to achieve a tree that is nether too tall and skinny nor too wide and bushy. Since ``numbits`` is encoded in the 1st byte of each integer, one can mix integers encoded differently without having to backtrack and convert.
+
+Topic aliases (`0x08` above) are each a single byte so no need to compress.
